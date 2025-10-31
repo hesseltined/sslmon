@@ -89,6 +89,11 @@ def get_ca_renewal_link(issuer):
     
     issuer_lower = issuer.lower()
     
+    # Let's Encrypt uses short codes like R3, E1, E5, etc.
+    # Check for Let's Encrypt patterns
+    if (len(issuer) <= 3 and issuer[0] in ['R', 'E', 'X']) or 'let' in issuer_lower:
+        return 'https://letsencrypt.org/'
+    
     # Map common CAs to their renewal/management URLs
     ca_links = {
         'digicert': 'https://www.digicert.com/account/login',
@@ -102,8 +107,10 @@ def get_ca_renewal_link(issuer):
         'rapidssl': 'https://www.rapidssl.com/',
         'ssl.com': 'https://www.ssl.com/my-account/',
         'namecheap': 'https://ap.www.namecheap.com/ProductList/SSL',
-        'letsencrypt': 'https://letsencrypt.org/',
-        'zerossl': 'https://app.zerossl.com/'
+        'zerossl': 'https://app.zerossl.com/',
+        'cloudflare': 'https://dash.cloudflare.com/',
+        'amazon': 'https://console.aws.amazon.com/acm/',
+        'google': 'https://console.cloud.google.com/security/ccm/'
     }
     
     for ca_name, url in ca_links.items():
@@ -811,6 +818,90 @@ def domains_page():
         logging.exception(f"Error checking new domain {domain}: {e}")
     
     return redirect(url_for("dashboard"))
+
+
+# ---------------------------------------------------------------------
+# Parse pasted certificate
+# ---------------------------------------------------------------------
+@app.route("/domains/paste-cert", methods=["POST"])
+@login_required
+def paste_certificate():
+    """Parse a pasted PEM certificate and add to monitoring."""
+    cert_text = request.form.get("cert_text", "").strip()
+    
+    if not cert_text:
+        return render_template("domains.html", error="Please paste a certificate")
+    
+    try:
+        from cryptography import x509
+        from cryptography.hazmat.backends import default_backend
+        
+        # Parse the PEM certificate
+        cert = x509.load_pem_x509_certificate(cert_text.encode(), default_backend())
+        
+        # Extract information
+        subject = cert.subject.get_attributes_for_oid(x509.oid.NameOID.COMMON_NAME)[0].value
+        issuer_cn = cert.issuer.get_attributes_for_oid(x509.oid.NameOID.COMMON_NAME)[0].value
+        not_before = cert.not_valid_before_utc
+        not_after = cert.not_valid_after_utc
+        
+        # Calculate days remaining
+        now = datetime.now(timezone.utc)
+        days_remaining = (not_after - now).days
+        
+        # Check if self-signed
+        is_self_signed = cert.issuer == cert.subject
+        
+        # Load existing records
+        records = []
+        if os.path.exists(RESULTS_PATH):
+            with open(RESULTS_PATH, "r") as f:
+                records = json.load(f)
+        
+        # Check if domain already exists
+        if any(r.get("domain") == subject for r in records):
+            return render_template("domains.html", error=f"Domain {subject} already exists")
+        
+        # Add new record
+        records.append({
+            "domain": subject,
+            "expires": not_after.strftime("%Y-%m-%d"),
+            "issued": not_before.strftime("%Y-%m-%d"),
+            "days_remaining": days_remaining,
+            "issuer": issuer_cn,
+            "subject": subject,
+            "is_self_signed": is_self_signed,
+            "tls_version": None,
+            "error": None,
+            "error_type": None,
+            "checked_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        })
+        
+        # Save
+        with open(RESULTS_PATH, "w") as f:
+            json.dump(records, f, indent=2)
+        
+        logging.info(f"Added certificate for {subject} from pasted PEM")
+        
+        # Reload data for display
+        data = records
+        for row in data:
+            if "days_remaining" not in row and "days_left" in row:
+                row["days_remaining"] = row["days_left"]
+            if "checked_at" not in row and "last_checked" in row:
+                row["checked_at"] = row["last_checked"]
+            row.setdefault("issuer", None)
+            row.setdefault("is_self_signed", False)
+            row.setdefault("days_remaining", None)
+            row.setdefault("error", None)
+            row.setdefault("error_type", None)
+            row.setdefault("checked_at", "Never")
+        
+        return render_template("domains.html", data=data, success=f"Added certificate for {subject}")
+        
+    except Exception as e:
+        logging.exception(f"Error parsing certificate: {e}")
+        return render_template("domains.html", error=f"Error parsing certificate: {str(e)}")
 
 
 # ---------------------------------------------------------------------
