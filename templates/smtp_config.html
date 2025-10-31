@@ -84,7 +84,14 @@
       </div>
 
       <hr class="my-4">
-      <h5>Notification Schedule</h5>
+      <h5>Alert Configuration</h5>
+      <div class="alert alert-info" role="alert">
+        <strong>Current Alert Thresholds:</strong><br>
+        Warning: {{ config.alert_threshold_warning or 30 }} days | 
+        Critical: {{ config.alert_threshold_critical or 14 }} days | 
+        Frequency: {{ config.alert_frequency or 'once' | title }}
+        {% if config.monthly_report %} | Monthly Reports: Enabled{% endif %}
+      </div>
       
       <div class="mb-3">
         <label for="alert_threshold_warning" class="form-label">Warning Threshold (days)</label>
@@ -151,10 +158,19 @@ function clearForm() {
 <div class="card mt-4">
   <div class="card-body">
     <h5 class="card-title">Test Email Configuration</h5>
-    <p class="card-text">Send a test email to verify your SMTP settings are working correctly.</p>
-    <form method="post" action="/admin/smtp/test">
-      <button type="submit" class="btn btn-success">Send Test Email</button>
-    </form>
+    <p class="card-text">Send test emails to verify your SMTP settings and alert templates.</p>
+    <div class="btn-group" role="group">
+      <form method="post" action="/admin/smtp/test" class="d-inline me-2">
+        <button type="submit" class="btn btn-success">Send Test Email</button>
+      </form>
+      <form method="post" action="/admin/smtp/test-warning" class="d-inline me-2">
+        <button type="submit" class="btn btn-warning">Test Warning Alert</button>
+      </form>
+      <form method="post" action="/admin/smtp/test-critical" class="d-inline">
+        <button type="submit" class="btn btn-danger">Test Critical Alert</button>
+      </form>
+    </div>
+    <div class="form-text mt-2">Test emails will use example.com with simulated expiry dates</div>
   </div>
 </div>
 

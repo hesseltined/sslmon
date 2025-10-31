@@ -708,6 +708,74 @@ def smtp_test():
                                error=f"Error: {str(e)}")
 
 
+@app.route("/admin/smtp/test-warning", methods=["POST"])
+@login_required
+def smtp_test_warning():
+    """Send a test warning alert."""
+    try:
+        from datetime import timedelta
+        # Simulate a certificate expiring in 25 days (warning threshold)
+        test_expires = (datetime.now(timezone.utc) + timedelta(days=25)).strftime("%Y-%m-%d")
+        renewal_link = get_ca_renewal_link("Let's Encrypt")
+        
+        result = mail.send_alert(
+            domain="test-warning.example.com",
+            days_remaining=25,
+            expires=test_expires,
+            issuer="Let's Encrypt Authority X3",
+            critical=False,
+            renewal_link=renewal_link
+        )
+        
+        if result:
+            return render_template("smtp_config.html",
+                                   config=mail.get_config_safe(),
+                                   success="Test WARNING alert sent! Check your inbox.")
+        else:
+            return render_template("smtp_config.html",
+                                   config=mail.get_config_safe(),
+                                   error="Failed to send test warning alert")
+    except Exception as e:
+        logging.exception(f"Error sending test warning: {e}")
+        return render_template("smtp_config.html",
+                               config=mail.get_config_safe(),
+                               error=f"Error: {str(e)}")
+
+
+@app.route("/admin/smtp/test-critical", methods=["POST"])
+@login_required
+def smtp_test_critical():
+    """Send a test critical alert."""
+    try:
+        from datetime import timedelta
+        # Simulate a certificate expiring in 7 days (critical threshold)
+        test_expires = (datetime.now(timezone.utc) + timedelta(days=7)).strftime("%Y-%m-%d")
+        renewal_link = get_ca_renewal_link("DigiCert")
+        
+        result = mail.send_alert(
+            domain="test-critical.example.com",
+            days_remaining=7,
+            expires=test_expires,
+            issuer="DigiCert SHA2 Secure Server CA",
+            critical=True,
+            renewal_link=renewal_link
+        )
+        
+        if result:
+            return render_template("smtp_config.html",
+                                   config=mail.get_config_safe(),
+                                   success="Test CRITICAL alert sent! Check your inbox.")
+        else:
+            return render_template("smtp_config.html",
+                                   config=mail.get_config_safe(),
+                                   error="Failed to send test critical alert")
+    except Exception as e:
+        logging.exception(f"Error sending test critical: {e}")
+        return render_template("smtp_config.html",
+                               config=mail.get_config_safe(),
+                               error=f"Error: {str(e)}")
+
+
 # ---------------------------------------------------------------------
 # Check Now - Manual certificate check trigger
 # ---------------------------------------------------------------------
