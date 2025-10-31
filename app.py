@@ -363,6 +363,34 @@ def domains_page():
     
     return redirect(url_for("dashboard"))
 
+
+# ---------------------------------------------------------------------
+# Delete domain
+# ---------------------------------------------------------------------
+@app.route("/domains/delete", methods=["POST"])
+def delete_domain():
+    """Delete a domain from the monitoring list."""
+    domain = request.form.get("domain", "").strip().lower()
+    if not domain:
+        return redirect(url_for("domains_page"))
+    
+    records = []
+    if os.path.exists(RESULTS_PATH):
+        with open(RESULTS_PATH, "r") as f:
+            records = json.load(f)
+    
+    # Filter out the domain to delete
+    original_count = len(records)
+    records = [r for r in records if r.get("domain") != domain]
+    
+    if len(records) < original_count:
+        with open(RESULTS_PATH, "w") as f:
+            json.dump(records, f, indent=2)
+        logging.info(f"Deleted domain: {domain}")
+    
+    return redirect(url_for("domains_page"))
+
+
 # --------------------------------------------------------------------
 # Main entrypoint  –  HTTPS server
 # --------------------------------------------------------------------

@@ -32,6 +32,7 @@
       <th>Days Remaining</th>
       <th>Status</th>
       <th>Last Checked</th>
+      <th>Actions</th>
     </tr>
   </thead>
   <tbody>
@@ -67,6 +68,12 @@
         {% endif %}
       </td>
       <td><small>{{ d.checked_at }}</small></td>
+      <td>
+        <form method="post" action="/domains/delete" style="display:inline;">
+          <input type="hidden" name="domain" value="{{ d.domain }}">
+          <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete {{ d.domain }}?');">Delete</button>
+        </form>
+      </td>
     </tr>
     {% endfor %}
   </tbody>
