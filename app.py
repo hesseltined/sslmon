@@ -89,9 +89,10 @@ def get_ca_renewal_link(issuer):
     
     issuer_lower = issuer.lower()
     
-    # Let's Encrypt uses short codes like R3, E1, E5, etc.
-    # Check for Let's Encrypt patterns
-    if (len(issuer) <= 3 and issuer[0] in ['R', 'E', 'X']) or 'let' in issuer_lower:
+    # Let's Encrypt specific codes (known intermediates)
+    # WE1 = Let's Encrypt E5, R3, R4, R10, R11, E1, E2, E3, E4, E5, E6, E7, E8, E9
+    letsencrypt_codes = ['we1', 'r3', 'r4', 'r10', 'r11', 'e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7', 'e9']
+    if issuer_lower in letsencrypt_codes or 'let' in issuer_lower or 'letsencrypt' in issuer_lower:
         return 'https://letsencrypt.org/'
     
     # Map common CAs to their renewal/management URLs
