@@ -65,12 +65,16 @@ class Mailer:
             print(f"[Mailer] Send error: {e}")
             return str(e)
 
-    def send_alert(self, domain, days_remaining, expires, issuer=None, critical=False):
+    def send_alert(self, domain, days_remaining, expires, issuer=None, critical=False, renewal_link=None):
         """Send alert for a specific domain approaching expiration."""
         if not self.cfg:
             return False
         level = "CRITICAL" if critical else "WARNING"
         subj = f"[SSLMon {level}] SSL Certificate Expiring: {domain}"
+        
+        renewal_text = ""
+        if renewal_link:
+            renewal_text = f"\n\nRenew Certificate:\n{renewal_link}"
         
         body = f"""SSL Certificate Expiration Alert
 
@@ -83,7 +87,7 @@ Alert Level: {level}
 Threshold: {'Critical (14 days)' if critical else 'Warning (30 days)'}
 
 Action Required:
-Please renew the SSL certificate for {domain} before it expires.
+Please renew the SSL certificate for {domain} before it expires.{renewal_text}
 
 ---
 This is an automated message from SSLMon

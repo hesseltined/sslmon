@@ -115,7 +115,13 @@
                   </tr>
                   <tr>
                     <th>Issuer:</th>
-                    <td>{{ row.issuer or 'N/A' }}</td>
+                    <td>
+                      {{ row.issuer or 'N/A' }}
+                      {% set renewal_link = get_ca_renewal_link(row.issuer) %}
+                      {% if renewal_link %}
+                        <a href="{{ renewal_link }}" target="_blank" class="btn btn-sm btn-primary ms-2">Renew Certificate</a>
+                      {% endif %}
+                    </td>
                   </tr>
                   <tr>
                     <th>Self-Signed:</th>

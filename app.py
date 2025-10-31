@@ -82,6 +82,37 @@ def login_required(f):
 # --------------------------------------------------------------------
 # Utility functions
 # --------------------------------------------------------------------
+def get_ca_renewal_link(issuer):
+    """Get renewal link for known Certificate Authorities."""
+    if not issuer:
+        return None
+    
+    issuer_lower = issuer.lower()
+    
+    # Map common CAs to their renewal/management URLs
+    ca_links = {
+        'digicert': 'https://www.digicert.com/account/login',
+        'godaddy': 'https://account.godaddy.com/products/',
+        'geotrust': 'https://products.geotrust.com/',
+        'thawte': 'https://www.thawte.com/ssl/',
+        'comodo': 'https://secure.comodo.com/',
+        'sectigo': 'https://secure.sectigo.com/',
+        'globalsign': 'https://www.globalsign.com/en/',
+        'entrust': 'https://www.entrust.com/',
+        'rapidssl': 'https://www.rapidssl.com/',
+        'ssl.com': 'https://www.ssl.com/my-account/',
+        'namecheap': 'https://ap.www.namecheap.com/ProductList/SSL',
+        'letsencrypt': 'https://letsencrypt.org/',
+        'zerossl': 'https://app.zerossl.com/'
+    }
+    
+    for ca_name, url in ca_links.items():
+        if ca_name in issuer_lower:
+            return url
+    
+    return None
+
+
 def perform_checks():
     """
     Perform SSL certificate checks on all monitored domains.
@@ -192,7 +223,8 @@ def send_notifications(data):
             # Check if we should send based on frequency settings
             if should_send_alert(record, is_critical):
                 try:
-                    result = mail.send_alert(domain, days, expires, issuer, is_critical)
+                    renewal_link = get_ca_renewal_link(issuer)
+                    result = mail.send_alert(domain, days, expires, issuer, is_critical, renewal_link)
                     if result:
                         record['last_alert_sent'] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
                         record['last_alert_level'] = 'critical' if is_critical else 'warning'
@@ -384,6 +416,55 @@ def change_password():
     return render_template("change_password.html")
 
 
+@app.route("/admin/factory-reset", methods=["GET", "POST"])
+@login_required
+def factory_reset():
+    """Factory reset - clear all data and reset to defaults."""
+    if request.method == "POST":
+        confirm_text = request.form.get("confirm_text", "").strip()
+        password = request.form.get("password", "").strip()
+        
+        # Verify password
+        if not verify_password(password):
+            return render_template("factory_reset.html", error="Incorrect password")
+        
+        # Verify confirmation text
+        if confirm_text != "RESET":
+            return render_template("factory_reset.html", error="You must type RESET to confirm")
+        
+        try:
+            # Delete all data files
+            files_to_delete = [
+                RESULTS_PATH,
+                MAIL_CONFIG_PATH,
+                MAIL_KEY_PATH,
+                "/data/last_monthly_report.txt",
+                LOG_PATH
+            ]
+            
+            for file_path in files_to_delete:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    logging.info(f"Deleted {file_path}")
+            
+            # Reset auth to default (admin/changeme)
+            default_config = {'admin_password_hash': hash_password('changeme')}
+            save_auth_config(default_config)
+            
+            logging.info("FACTORY RESET COMPLETED")
+            
+            # Log out the user
+            session.clear()
+            
+            return redirect(url_for('login'))
+            
+        except Exception as e:
+            logging.exception(f"Error during factory reset: {e}")
+            return render_template("factory_reset.html", error=f"Error during reset: {str(e)}")
+    
+    return render_template("factory_reset.html")
+
+
 @app.route("/")
 @login_required
 def dashboard():
@@ -413,7 +494,7 @@ def dashboard():
         row.setdefault("error_type", None)
         row.setdefault("checked_at", "Never")
     
-    return render_template("dashboard.html", data=data)
+    return render_template("dashboard.html", data=data, get_ca_renewal_link=get_ca_renewal_link)
 
 
 @app.route("/api/results")
