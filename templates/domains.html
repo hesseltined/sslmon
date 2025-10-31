@@ -37,37 +37,36 @@
   <tbody>
     {% for d in data %}
     <tr>
-      <td>{{ d.domain if d.domain is defined else 'Unknown' }}</td>
-      <td>{{ d.issuer if d.issuer is defined else '-' }}</td>
+      <td>{{ d.domain }}</td>
+      <td>{{ d.issuer or '-' }}</td>
       <td>
-        {% if d.is_self_signed is defined and d.is_self_signed %}
+        {% if d.is_self_signed %}
           <span class="badge bg-info text-dark">Yes</span>
-        {% elif d.issuer is defined and d.issuer %}
+        {% elif d.issuer %}
           <span class="text-muted">No</span>
         {% else %}
           <span class="text-muted">-</span>
         {% endif %}
       </td>
       <td>
-        {% set days = d.days_remaining if d.days_remaining is defined else (d.days_left if d.days_left is defined else none) %}
-        {% if days is not none and days >= 0 %}
-          {{ days }}
-        {% elif d.error is defined and d.error %}
+        {% if d.days_remaining is not none and d.days_remaining >= 0 %}
+          {{ d.days_remaining }}
+        {% elif d.error %}
           <span class="text-danger">Error</span>
         {% else %}
           <span class="text-muted">Pending</span>
         {% endif %}
       </td>
       <td>
-        {% if d.error is defined and d.error %}
-          <span class="badge bg-danger" title="{{ d.error }}">{{ (d.error_type if d.error_type is defined else 'ERROR')|upper }}</span>
-        {% elif days is not none %}
+        {% if d.error %}
+          <span class="badge bg-danger" title="{{ d.error }}">{{ d.error_type|upper }}</span>
+        {% elif d.days_remaining is not none %}
           <span class="badge bg-success">OK</span>
         {% else %}
           <span class="badge bg-secondary">Pending</span>
         {% endif %}
       </td>
-      <td><small>{{ d.checked_at if d.checked_at is defined else (d.last_checked if d.last_checked is defined else 'Never') }}</small></td>
+      <td><small>{{ d.checked_at }}</small></td>
     </tr>
     {% endfor %}
   </tbody>

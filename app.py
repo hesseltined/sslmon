@@ -124,6 +124,28 @@ def dashboard():
     if os.path.exists(RESULTS_PATH):
         with open(RESULTS_PATH, "r") as f:
             data = json.load(f)
+    
+    # Normalize data to use consistent field names
+    for row in data:
+        # Ensure new field names exist, falling back to old ones
+        if "days_remaining" not in row and "days_left" in row:
+            row["days_remaining"] = row["days_left"]
+        if "expires" not in row and "expiry" in row:
+            row["expires"] = row["expiry"]
+        if "checked_at" not in row and "last_checked" in row:
+            row["checked_at"] = row["last_checked"]
+        
+        # Ensure all required fields exist with defaults
+        row.setdefault("domain", "Unknown")
+        row.setdefault("issuer", None)
+        row.setdefault("subject", None)
+        row.setdefault("is_self_signed", False)
+        row.setdefault("expires", None)
+        row.setdefault("days_remaining", -1)
+        row.setdefault("error", None)
+        row.setdefault("error_type", None)
+        row.setdefault("checked_at", "Never")
+    
     return render_template("dashboard.html", data=data)
 
 
@@ -261,6 +283,20 @@ def domains_page():
         if os.path.exists(RESULTS_PATH):
             with open(RESULTS_PATH, "r") as f:
                 data = json.load(f)
+        
+        # Normalize data
+        for row in data:
+            if "days_remaining" not in row and "days_left" in row:
+                row["days_remaining"] = row["days_left"]
+            if "checked_at" not in row and "last_checked" in row:
+                row["checked_at"] = row["last_checked"]
+            row.setdefault("issuer", None)
+            row.setdefault("is_self_signed", False)
+            row.setdefault("days_remaining", None)
+            row.setdefault("error", None)
+            row.setdefault("error_type", None)
+            row.setdefault("checked_at", "Never")
+        
         return render_template("domains.html", data=data)
 
     # POST -> process new domain
