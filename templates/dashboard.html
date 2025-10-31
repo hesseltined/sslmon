@@ -32,6 +32,7 @@
   <table class="table table-striped align-middle mt-2">
     <thead class="table-dark">
       <tr>
+        <th style="width:30px"></th>
         <th>Domain</th>
         <th>Issuer</th>
         <th>Expiry Date</th>
@@ -41,6 +42,7 @@
     </thead>
     <tbody>
     {% for row in data %}
+      {% set row_id = 'cert-' ~ loop.index %}
       {% set has_error = row.error %}
       {% set days = row.days_remaining|int %}
       {% if has_error %}
@@ -57,7 +59,10 @@
           ('bg-success' if days>60 else
           ('bg-warning text-dark' if days>30 else
           ('bg-danger' if days>=0 else 'bg-secondary'))) %}
-      <tr>
+      <tr data-bs-toggle="collapse" data-bs-target="#{{ row_id }}" style="cursor:pointer;">
+        <td>
+          <i class="text-primary">▶</i>
+        </td>
         <td>
           {{ row.domain }}
           {% if row.is_self_signed %}
@@ -92,6 +97,75 @@
           {% endif %}
         </td>
         <td><small>{{ row.checked_at }}</small></td>
+      </tr>
+      <tr id="{{ row_id }}" class="collapse">
+        <td colspan="6" class="bg-light">
+          <div class="card card-body">
+            <h6 class="text-primary mb-3">Certificate Details</h6>
+            <div class="row">
+              <div class="col-md-6">
+                <table class="table table-sm table-borderless">
+                  <tr>
+                    <th style="width:150px">Domain:</th>
+                    <td>{{ row.domain }}</td>
+                  </tr>
+                  <tr>
+                    <th>Subject:</th>
+                    <td>{{ row.subject or 'N/A' }}</td>
+                  </tr>
+                  <tr>
+                    <th>Issuer:</th>
+                    <td>{{ row.issuer or 'N/A' }}</td>
+                  </tr>
+                  <tr>
+                    <th>Self-Signed:</th>
+                    <td>{% if row.is_self_signed %}Yes{% else %}No{% endif %}</td>
+                  </tr>
+                  <tr>
+                    <th>TLS Version:</th>
+                    <td>{{ row.tls_version or 'N/A' }}</td>
+                  </tr>
+                </table>
+              </div>
+              <div class="col-md-6">
+                <table class="table table-sm table-borderless">
+                  <tr>
+                    <th style="width:150px">Issued Date:</th>
+                    <td>{{ row.issued or 'N/A' }}</td>
+                  </tr>
+                  <tr>
+                    <th>Expiry Date:</th>
+                    <td>{{ row.expires or 'N/A' }}</td>
+                  </tr>
+                  <tr>
+                    <th>Days Remaining:</th>
+                    <td>
+                      {% if row.days_remaining is not none and row.days_remaining >= 0 %}
+                        <strong class="{% if row.days_remaining <= 14 %}text-danger{% elif row.days_remaining <= 30 %}text-warning{% else %}text-success{% endif %}">
+                          {{ row.days_remaining }} days
+                        </strong>
+                      {% elif row.error %}
+                        <span class="text-danger">Error</span>
+                      {% else %}
+                        <span class="text-muted">N/A</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Last Checked:</th>
+                    <td>{{ row.checked_at }}</td>
+                  </tr>
+                  {% if row.error %}
+                  <tr>
+                    <th>Error:</th>
+                    <td><span class="text-danger">{{ row.error }}</span></td>
+                  </tr>
+                  {% endif %}
+                </table>
+              </div>
+            </div>
+          </div>
+        </td>
       </tr>
     {% endfor %}
     </tbody>

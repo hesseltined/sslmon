@@ -353,6 +353,37 @@ def logout():
     return redirect(url_for('login'))
 
 
+@app.route("/admin/change-password", methods=["GET", "POST"])
+@login_required
+def change_password():
+    """Change admin password."""
+    if request.method == "POST":
+        current = request.form.get("current_password", "").strip()
+        new = request.form.get("new_password", "").strip()
+        confirm = request.form.get("confirm_password", "").strip()
+        
+        # Verify current password
+        if not verify_password(current):
+            return render_template("change_password.html", error="Current password is incorrect")
+        
+        # Validate new password
+        if len(new) < 8:
+            return render_template("change_password.html", error="New password must be at least 8 characters")
+        
+        if new != confirm:
+            return render_template("change_password.html", error="New passwords do not match")
+        
+        # Update password
+        config = load_auth_config()
+        config['admin_password_hash'] = hash_password(new)
+        save_auth_config(config)
+        logging.info("Admin password changed")
+        
+        return render_template("change_password.html", success="Password updated successfully")
+    
+    return render_template("change_password.html")
+
+
 @app.route("/")
 @login_required
 def dashboard():
