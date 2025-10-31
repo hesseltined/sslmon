@@ -10,11 +10,17 @@ echo "SSLMon v3.9 Deployment Script"
 echo "========================================="
 echo ""
 
-# Pull latest code from git
-echo "[1/6] Pulling latest code from GitHub..."
-cd /opt/sslmon
-sudo git pull origin main
-echo "   Code updated successfully."
+# Sync files to server
+echo "[1/6] Syncing files to /opt/sslmon/..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+sudo rsync -av --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' \
+  "${SCRIPT_DIR}/"*.py \
+  "${SCRIPT_DIR}/"*.txt \
+  "${SCRIPT_DIR}/Dockerfile" \
+  /opt/sslmon/
+sudo rsync -av --exclude='__pycache__' "${SCRIPT_DIR}/templates/" /opt/sslmon/templates/
+sudo rsync -av "${SCRIPT_DIR}/static/" /opt/sslmon/static/
+echo "   Files synced successfully."
 echo ""
 
 # Verify files are in place
