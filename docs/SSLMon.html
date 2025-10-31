@@ -132,7 +132,7 @@
 <body>
     <div class="header">
         <h1>SSLMon</h1>
-        <div class="version-badge">Current Version: v3.9</div>
+        <div class="version-badge">Current Version: v4.0</div>
         <p>SSL Certificate Monitoring System for Client Environments</p>
     </div>
 
@@ -146,11 +146,16 @@
 
         <h3>Key Features</h3>
         <ul>
+            <li>Password-protected web interface with session management</li>
             <li>Automatic SSL certificate monitoring with configurable check intervals</li>
-            <li>Real-time certificate expiration tracking</li>
+            <li>Real-time certificate expiration tracking with expandable details</li>
             <li>CA issuer identification and self-signed certificate detection</li>
-            <li>Web-based dashboard with Bootstrap 5 UI</li>
-            <li>Email notifications with configurable thresholds</li>
+            <li>Web-based dashboard with Bootstrap 5 UI and responsive navigation</li>
+            <li>Email notifications with Office 365/Gmail presets</li>
+            <li>Configurable alert thresholds (warning/critical) and frequencies</li>
+            <li>Monthly certificate status reports</li>
+            <li>Domain add/delete management</li>
+            <li>Manual "Check Now" functionality</li>
             <li>HTTPS-enabled web interface</li>
             <li>Docker containerized for easy deployment</li>
             <li>Persistent data storage via Docker volumes</li>
@@ -274,6 +279,55 @@ python3 -c "import cert_checker, json; \\
         <h2>Version History & Changelog</h2>
 
         <div class="changelog-entry">
+            <div class="version-header">Version 4.0</div>
+            <div class="meta">
+                Date: October 31, 2025<br>
+                Author: Doug Hesseltine
+            </div>
+            <strong>Major Features:</strong>
+            <ul>
+                <li>Implemented password-protected authentication system with SHA-256 hashing</li>
+                <li>Added initial setup wizard for admin password configuration</li>
+                <li>Built SMTP configuration page with Office 365 and Gmail presets</li>
+                <li>Integrated automatic email notifications with configurable thresholds</li>
+                <li>Added monthly certificate status reports (sent on 1st of month)</li>
+                <li>Implemented domain management (add/delete) with immediate certificate checks</li>
+                <li>Added expandable certificate details in dashboard (click to expand)</li>
+                <li>Created consistent navigation across all pages</li>
+                <li>Added password change functionality for admin</li>
+                <li>Implemented "Check Now" manual certificate check button</li>
+            </ul>
+            <strong>Email Features:</strong>
+            <ul>
+                <li>Office 365/Microsoft 365 SMTP preset configuration</li>
+                <li>Gmail SMTP preset configuration</li>
+                <li>Custom SMTP server support for any provider</li>
+                <li>Configurable warning threshold (default: 30 days)</li>
+                <li>Configurable critical threshold (default: 14 days)</li>
+                <li>Alert frequency options: Once, Daily, Every Check, Weekly</li>
+                <li>Multiple recipient support (client + MSP emails)</li>
+                <li>Test email button to verify SMTP configuration</li>
+                <li>Encrypted password storage using Fernet encryption</li>
+            </ul>
+            <strong>UI/UX Improvements:</strong>
+            <ul>
+                <li>Expandable certificate detail rows showing full information</li>
+                <li>Consistent Bootstrap 5 navigation bar across all pages</li>
+                <li>Color-coded certificate status (green/yellow/red)</li>
+                <li>Self-signed certificate badges</li>
+                <li>Error detail display with categorized error types</li>
+                <li>Professional login/setup pages with gradient backgrounds</li>
+            </ul>
+            <strong>Security:</strong>
+            <ul>
+                <li>Session-based authentication with login_required decorator</li>
+                <li>SHA-256 password hashing</li>
+                <li>Fernet encryption for SMTP passwords</li>
+                <li>Protected routes requiring authentication</li>
+            </ul>
+        </div>
+
+        <div class="changelog-entry">
             <div class="version-header">Version 3.9</div>
             <div class="meta">
                 Date: October 31, 2025<br>
@@ -369,11 +423,14 @@ docker run -d \\
 ├── Dockerfile          # Container build configuration
 ├── requirements.txt    # Python dependencies
 ├── templates/          # HTML templates
-│   ├── dashboard.html
-│   ├── overview.html
-│   ├── admin.html
-│   ├── domains.html
-│   └── login.html
+│   ├── dashboard.html      # Main certificate status (expandable details)
+│   ├── overview.html       # Charts and visualizations
+│   ├── admin.html          # Admin panel with logs
+│   ├── domains.html        # Domain management (add/delete)
+│   ├── login.html          # Login page
+│   ├── setup.html          # Initial setup wizard
+│   ├── smtp_config.html    # SMTP/email configuration
+│   └── change_password.html # Password change form
 └── static/             # CSS and JavaScript
     ├── sslmon.css
     └── sslmon.js
@@ -390,35 +447,46 @@ docker run -d \\
 
     <div class="section">
         <h2>Roadmap & Future Enhancements</h2>
-        <h3>High Priority</h3>
+        <h3>Completed in v4.0</h3>
         <ul>
-            <li>Integrate cert_checker module into app.py perform_checks() function</li>
-            <li>Add "Check Now" button for manual certificate checks</li>
-            <li>Build configuration/setup page with admin password and SMTP settings</li>
-            <li>Implement authentication system (login/logout with sessions)</li>
+            <li>✓ Integrated cert_checker module into perform_checks()</li>
+            <li>✓ Added "Check Now" button for manual certificate checks</li>
+            <li>✓ Built SMTP configuration page with presets</li>
+            <li>✓ Implemented authentication system (login/logout with sessions)</li>
+            <li>✓ Integrated email notifications with configurable thresholds</li>
+            <li>✓ Added delete domain functionality</li>
+            <li>✓ Display detailed certificate information (expandable rows)</li>
+        </ul>
+
+        <h3>High Priority (Future)</h3>
+        <ul>
+            <li>Migrate from JSON to SQLite for historical tracking</li>
+            <li>Certificate history and expiration timeline view</li>
+            <li>Dashboard widgets for quick stats</li>
+            <li>Email notification templates customization</li>
         </ul>
 
         <h3>Medium Priority</h3>
         <ul>
-            <li>Integrate email notifications with configurable thresholds</li>
-            <li>Enhance error handling and display in dashboard</li>
-            <li>Add delete domain functionality</li>
-            <li>Display detailed certificate information (CA, chain, validity)</li>
-            <li>Migrate from JSON to SQLite for historical tracking</li>
+            <li>IP range scanning for automatic certificate discovery</li>
+            <li>Integration with technologist.services/tools navigation</li>
+            <li>Multi-user support with role-based access</li>
+            <li>API endpoints for external integrations</li>
+            <li>Webhook support for Slack/Teams notifications</li>
         </ul>
 
         <h3>Lower Priority</h3>
         <ul>
-            <li>IP range scanning for automatic certificate discovery</li>
-            <li>Integration with technologist.services/tools navigation</li>
-            <li>Multi-user support with role-based access</li>
-            <li>Certificate renewal reminders and workflows</li>
-            <li>API endpoints for external integrations</li>
+            <li>Certificate renewal workflows and reminders</li>
+            <li>Integration with Let's Encrypt for automatic renewal</li>
+            <li>Mobile app or PWA support</li>
+            <li>Dark mode theme</li>
+            <li>Export reports to PDF/CSV</li>
         </ul>
     </div>
 
     <div class="footer">
-        <p><strong>SSLMon v3.9</strong></p>
+        <p><strong>SSLMon v4.0</strong></p>
         <p>Copyright 2025 Technologist.services - All Rights Reserved</p>
         <p>Author: Doug Hesseltine</p>
         <p>Last Updated: October 31, 2025</p>
