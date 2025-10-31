@@ -7,7 +7,7 @@ import time
 import shutil
 import subprocess
 import ssl
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Flask, render_template, jsonify, send_file, request, redirect, url_for
 
 # Import certificate checker module
@@ -89,13 +89,13 @@ def perform_checks():
                 logging.warning(f"  {domain}: ERROR - {result.get('error_type')}: {result.get('error')}")
                 
             # Update last checked timestamp
-            record["checked_at"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            record["checked_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             
         except Exception as e:
             logging.exception(f"Unexpected error checking {domain}: {e}")
             record["error"] = f"Internal error: {str(e)}"
             record["error_type"] = "internal"
-            record["checked_at"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            record["checked_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             error_count += 1
 
     # Save updated results
@@ -144,7 +144,7 @@ def health():
             data = json.load(f)
     return jsonify({
         "status": "ok",
-        "last_check": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+        "last_check": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
         "monitored": len(data)
     })
 
@@ -316,7 +316,7 @@ def domains_page():
                     rec["error"] = result.get("error")
                     rec["error_type"] = result.get("error_type")
                     logging.warning(f"  {domain}: ERROR - {result.get('error_type')}")
-                rec["checked_at"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                rec["checked_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
                 break
         
         # Save updated results

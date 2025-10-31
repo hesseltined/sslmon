@@ -39,8 +39,8 @@
     </thead>
     <tbody>
     {% for row in data %}
-      {% set has_error = row.error is not none %}
-      {% set days = row.days_remaining|int if row.days_remaining is not none else -1 %}
+      {% set has_error = row.get('error') is not none %}
+      {% set days = row.get('days_remaining', row.get('days_left', -1))|int if row.get('days_remaining', row.get('days_left')) is not none else -1 %}
       {% set pct = [max(min(days,90),0)/90*100,100]|first if not has_error else 0 %}
       {% set color =
           'bg-secondary' if has_error else
@@ -49,8 +49,8 @@
           ('bg-danger' if days>=0 else 'bg-secondary'))) %}
       <tr>
         <td>
-          {{ row.domain }}
-          {% if row.is_self_signed %}
+          {{ row.get('domain', 'Unknown') }}
+          {% if row.get('is_self_signed') %}
             <span class="badge bg-info text-dark ms-2" title="Self-signed certificate">Self-Signed</span>
           {% endif %}
         </td>
@@ -58,20 +58,20 @@
           {% if has_error %}
             <span class="text-muted">-</span>
           {% else %}
-            <span title="{{ row.subject }}">{{ row.issuer or 'Unknown' }}</span>
+            <span title="{{ row.get('subject', '') }}">{{ row.get('issuer', 'Unknown') }}</span>
           {% endif %}
         </td>
         <td>
           {% if has_error %}
             <span class="text-muted">-</span>
           {% else %}
-            {{ row.expires or 'N/A' }}
+            {{ row.get('expires', row.get('expiry', 'N/A')) }}
           {% endif %}
         </td>
         <td>
           {% if has_error %}
-            <div class="alert alert-danger py-1 px-2 mb-0" role="alert" title="{{ row.error }}">
-              <small><strong>{{ row.error_type|upper }}:</strong> {{ row.error[:50] }}{% if row.error|length > 50 %}...{% endif %}</small>
+            <div class="alert alert-danger py-1 px-2 mb-0" role="alert" title="{{ row.get('error', 'Unknown error') }}">
+              <small><strong>{{ (row.get('error_type', 'error'))|upper }}:</strong> {{ row.get('error', 'Unknown')[:50] }}{% if row.get('error', '')|length > 50 %}...{% endif %}</small>
             </div>
           {% else %}
             <div class="progress" style="height:22px;">
@@ -81,7 +81,7 @@
             </div>
           {% endif %}
         </td>
-        <td><small>{{ row.checked_at or 'Never' }}</small></td>
+        <td><small>{{ row.get('checked_at', row.get('last_checked', 'Never')) }}</small></td>
       </tr>
     {% endfor %}
     </tbody>
