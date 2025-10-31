@@ -39,8 +39,8 @@
     </thead>
     <tbody>
     {% for row in data %}
-      {% set has_error = row.get('error') is not none %}
-      {% set days = row.get('days_remaining', row.get('days_left', -1))|int if row.get('days_remaining', row.get('days_left')) is not none else -1 %}
+      {% set has_error = row.error is defined and row.error is not none %}
+      {% set days = (row.days_remaining if row.days_remaining is defined else (row.days_left if row.days_left is defined else -1))|int %}
       {% set pct = [max(min(days,90),0)/90*100,100]|first if not has_error else 0 %}
       {% set color =
           'bg-secondary' if has_error else
@@ -49,8 +49,8 @@
           ('bg-danger' if days>=0 else 'bg-secondary'))) %}
       <tr>
         <td>
-          {{ row.get('domain', 'Unknown') }}
-          {% if row.get('is_self_signed') %}
+          {{ row.domain if row.domain is defined else 'Unknown' }}
+          {% if row.is_self_signed is defined and row.is_self_signed %}
             <span class="badge bg-info text-dark ms-2" title="Self-signed certificate">Self-Signed</span>
           {% endif %}
         </td>
@@ -58,20 +58,20 @@
           {% if has_error %}
             <span class="text-muted">-</span>
           {% else %}
-            <span title="{{ row.get('subject', '') }}">{{ row.get('issuer', 'Unknown') }}</span>
+            <span title="{{ row.subject if row.subject is defined else '' }}">{{ row.issuer if row.issuer is defined else 'Unknown' }}</span>
           {% endif %}
         </td>
         <td>
           {% if has_error %}
             <span class="text-muted">-</span>
           {% else %}
-            {{ row.get('expires', row.get('expiry', 'N/A')) }}
+            {{ (row.expires if row.expires is defined else (row.expiry if row.expiry is defined else 'N/A')) }}
           {% endif %}
         </td>
         <td>
           {% if has_error %}
-            <div class="alert alert-danger py-1 px-2 mb-0" role="alert" title="{{ row.get('error', 'Unknown error') }}">
-              <small><strong>{{ (row.get('error_type', 'error'))|upper }}:</strong> {{ row.get('error', 'Unknown')[:50] }}{% if row.get('error', '')|length > 50 %}...{% endif %}</small>
+            <div class="alert alert-danger py-1 px-2 mb-0" role="alert" title="{{ row.error if row.error is defined else 'Unknown error' }}">
+              <small><strong>{{ (row.error_type if row.error_type is defined else 'error')|upper }}:</strong> {{ (row.error if row.error is defined else 'Unknown')[:50] }}{% if row.error is defined and row.error|length > 50 %}...{% endif %}</small>
             </div>
           {% else %}
             <div class="progress" style="height:22px;">
@@ -81,7 +81,7 @@
             </div>
           {% endif %}
         </td>
-        <td><small>{{ row.get('checked_at', row.get('last_checked', 'Never')) }}</small></td>
+        <td><small>{{ row.checked_at if row.checked_at is defined else (row.last_checked if row.last_checked is defined else 'Never') }}</small></td>
       </tr>
     {% endfor %}
     </tbody>
