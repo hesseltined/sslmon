@@ -16,6 +16,7 @@ from flask import Flask, render_template, jsonify, send_file, request, redirect,
 # Import certificate checker module
 import cert_checker
 import mailer
+import network_scanner
 
 # --------------------------------------------------------------------
 # Flask setup
@@ -999,6 +1000,182 @@ def delete_domain():
         logging.info(f"Deleted domain: {domain}")
     
     return redirect(url_for("domains_page"))
+
+
+# ---------------------------------------------------------------------
+# Network Discovery
+# ---------------------------------------------------------------------
+@app.route("/network-discovery", methods=["GET"])
+@login_required
+def network_discovery():
+    """Network discovery page."""
+    return render_template("network_discovery.html")
+
+
+@app.route("/network-discovery/auto", methods=["POST"])
+@login_required
+def network_discovery_auto():
+    """Auto-detect and scan local networks."""
+    try:
+        networks = network_scanner.get_local_networks()
+        
+        if not networks:
+            return render_template("network_discovery.html", 
+                                   error="No local networks detected")
+        
+        # Scan all detected networks
+        all_ips = []
+        for network in networks:
+            ips = network_scanner.parse_ip_range(network)
+            all_ips.extend(ips)
+        
+        logging.info(f"Auto-scanning {len(all_ips)} hosts on networks: {networks}")
+        discovered = network_scanner.scan_network(all_ips)
+        
+        # Store in session for add-selected route
+        session['discovered_hosts'] = discovered
+        
+        return render_template("network_discovery.html",
+                               discovered=discovered,
+                               success=f"Scanned {len(all_ips)} hosts, found {len(discovered)} with SSL")
+    
+    except Exception as e:
+        logging.exception(f"Error in auto-discovery: {e}")
+        return render_template("network_discovery.html", error=f"Error: {str(e)}")
+
+
+@app.route("/network-discovery/manual", methods=["POST"])
+@login_required
+def network_discovery_manual():
+    """Manually scan specified IP range."""
+    ip_range = request.form.get("ip_range", "").strip()
+    
+    if not ip_range:
+        return render_template("network_discovery.html", error="Please enter an IP range")
+    
+    try:
+        ips = network_scanner.parse_ip_range(ip_range)
+        logging.info(f"Manual scanning {len(ips)} hosts from range: {ip_range}")
+        
+        discovered = network_scanner.scan_network(ips)
+        
+        # Store in session
+        session['discovered_hosts'] = discovered
+        
+        return render_template("network_discovery.html",
+                               discovered=discovered,
+                               success=f"Scanned {len(ips)} hosts, found {len(discovered)} with SSL")
+    
+    except Exception as e:
+        logging.exception(f"Error in manual scan: {e}")
+        return render_template("network_discovery.html", error=f"Error: {str(e)}")
+
+
+@app.route("/network-discovery/dns", methods=["POST"])
+@login_required
+def network_discovery_dns():
+    """Query DNS zone for hosts."""
+    dns_server = request.form.get("dns_server", "").strip()
+    domain_zone = request.form.get("domain_zone", "").strip()
+    
+    if not dns_server or not domain_zone:
+        return render_template("network_discovery.html", 
+                               error="DNS server and domain zone are required")
+    
+    try:
+        logging.info(f"Querying DNS {dns_server} for zone {domain_zone}")
+        hostnames = network_scanner.query_dns_zone(dns_server, domain_zone)
+        
+        if not hostnames:
+            return render_template("network_discovery.html",
+                                   error="No hosts found in DNS zone (zone transfer may be restricted)")
+        
+        # Scan discovered hostnames
+        discovered = []
+        for hostname in hostnames:
+            result = network_scanner.scan_host(hostname)
+            if result.get('has_ssl'):
+                discovered.append(result)
+            time.sleep(0.2)  # Rate limiting
+        
+        # Store in session
+        session['discovered_hosts'] = discovered
+        
+        return render_template("network_discovery.html",
+                               discovered=discovered,
+                               success=f"Found {len(hostnames)} hosts in DNS, {len(discovered)} with SSL")
+    
+    except Exception as e:
+        logging.exception(f"Error in DNS query: {e}")
+        return render_template("network_discovery.html", error=f"Error: {str(e)}")
+
+
+@app.route("/network-discovery/add-selected", methods=["POST"])
+@login_required
+def network_discovery_add_selected():
+    """Add selected discovered hosts to monitoring."""
+    discovered = session.get('discovered_hosts', [])
+    
+    if not discovered:
+        return redirect(url_for('network_discovery'))
+    
+    # Check if "Add All" was clicked
+    add_all = request.form.get('add_all')
+    
+    if add_all:
+        selected = [h['domain'] for h in discovered]
+    else:
+        selected = request.form.getlist('selected_hosts')
+    
+    if not selected:
+        return render_template("network_discovery.html",
+                               discovered=discovered,
+                               error="No hosts selected")
+    
+    # Load existing records
+    records = []
+    if os.path.exists(RESULTS_PATH):
+        with open(RESULTS_PATH, "r") as f:
+            records = json.load(f)
+    
+    existing_domains = {r.get('domain') for r in records}
+    added_count = 0
+    skipped_count = 0
+    
+    # Add selected hosts
+    for host in discovered:
+        domain = host['domain']
+        
+        if domain not in selected:
+            continue
+        
+        if domain in existing_domains:
+            skipped_count += 1
+            continue
+        
+        # Add to records
+        records.append({
+            "domain": domain,
+            "expires": host.get('expires'),
+            "issued": host.get('issued'),
+            "days_remaining": host.get('days_remaining'),
+            "issuer": host.get('issuer'),
+            "subject": host.get('subject'),
+            "is_self_signed": host.get('is_self_signed'),
+            "tls_version": host.get('tls_version'),
+            "error": None,
+            "error_type": None,
+            "checked_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        })
+        added_count += 1
+    
+    # Save
+    with open(RESULTS_PATH, "w") as f:
+        json.dump(records, f, indent=2)
+    
+    logging.info(f"Network discovery: added {added_count} hosts, skipped {skipped_count} duplicates")
+    
+    return redirect(url_for('dashboard'))
 
 
 # --------------------------------------------------------------------

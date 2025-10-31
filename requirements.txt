@@ -1,3 +1,5 @@
 flask
 apscheduler
 cryptography
+dnspython
+netifaces
