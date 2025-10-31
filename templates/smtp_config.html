@@ -34,12 +34,22 @@
 
 <div class="card">
   <div class="card-body">
+    <div class="mb-3">
+      <label class="form-label">Quick Setup Presets</label>
+      <div class="btn-group w-100" role="group">
+        <button type="button" class="btn btn-outline-secondary" onclick="setO365()">Office 365 / Microsoft 365</button>
+        <button type="button" class="btn btn-outline-secondary" onclick="setGmail()">Gmail</button>
+        <button type="button" class="btn btn-outline-secondary" onclick="clearForm()">Custom</button>
+      </div>
+      <div class="form-text">Select a preset or use custom settings</div>
+    </div>
+
     <form method="post">
       <div class="mb-3">
         <label for="smtp_host" class="form-label">SMTP Server</label>
         <input type="text" class="form-control" id="smtp_host" name="smtp_host" 
                value="{{ config.smtp_host or '' }}" 
-               placeholder="smtp.gmail.com" required>
+               placeholder="smtp.office365.com" required>
         <div class="form-text">Your mail server hostname</div>
       </div>
 
@@ -69,14 +79,72 @@
         <label for="to_emails" class="form-label">Alert Recipients</label>
         <input type="text" class="form-control" id="to_emails" name="to_emails" 
                value="{{ config.to_emails|join(', ') if config.to_emails else '' }}" 
-               placeholder="admin@example.com, security@example.com" required>
-        <div class="form-text">Comma-separated list of email addresses</div>
+               placeholder="admin@example.com, msp@example.com" required>
+        <div class="form-text">Comma-separated list of email addresses (client and MSP)</div>
+      </div>
+
+      <hr class="my-4">
+      <h5>Notification Schedule</h5>
+      
+      <div class="mb-3">
+        <label for="alert_threshold_warning" class="form-label">Warning Threshold (days)</label>
+        <input type="number" class="form-control" id="alert_threshold_warning" name="alert_threshold_warning" 
+               value="{{ config.alert_threshold_warning or 30 }}" min="1" required>
+        <div class="form-text">Send warning when certificates expire within this many days</div>
+      </div>
+
+      <div class="mb-3">
+        <label for="alert_threshold_critical" class="form-label">Critical Threshold (days)</label>
+        <input type="number" class="form-control" id="alert_threshold_critical" name="alert_threshold_critical" 
+               value="{{ config.alert_threshold_critical or 14 }}" min="1" required>
+        <div class="form-text">Send critical alert when certificates expire within this many days</div>
+      </div>
+
+      <div class="mb-3">
+        <label for="alert_frequency" class="form-label">Alert Frequency</label>
+        <select class="form-select" id="alert_frequency" name="alert_frequency" required>
+          <option value="daily" {% if config.alert_frequency == 'daily' %}selected{% endif %}>Daily (once per day)</option>
+          <option value="every_check" {% if config.alert_frequency == 'every_check' %}selected{% endif %}>Every Check (24 hours)</option>
+          <option value="weekly" {% if config.alert_frequency == 'weekly' %}selected{% endif %}>Weekly</option>
+          <option value="once" {% if config.alert_frequency == 'once' or not config.alert_frequency %}selected{% endif %}>Once Only (until resolved)</option>
+        </select>
+        <div class="form-text">How often to send alerts for the same certificate</div>
+      </div>
+
+      <div class="mb-3">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="monthly_report" name="monthly_report" 
+                 {% if config.monthly_report %}checked{% endif %}>
+          <label class="form-check-label" for="monthly_report">
+            Send monthly status report
+          </label>
+          <div class="form-text">Receive a full certificate status report every month (1st of month)</div>
+        </div>
       </div>
 
       <button type="submit" class="btn btn-primary">Save Configuration</button>
     </form>
   </div>
 </div>
+
+<script>
+function setO365() {
+  document.getElementById('smtp_host').value = 'smtp.office365.com';
+  document.getElementById('smtp_port').value = '587';
+  alert('Office 365 settings applied. Enter your email address as username.');
+}
+
+function setGmail() {
+  document.getElementById('smtp_host').value = 'smtp.gmail.com';
+  document.getElementById('smtp_port').value = '587';
+  alert('Gmail settings applied. You may need to create an App Password.');
+}
+
+function clearForm() {
+  document.getElementById('smtp_host').value = '';
+  document.getElementById('smtp_port').value = '587';
+}
+</script>
 
 {% if config.smtp_host %}
 <div class="card mt-4">

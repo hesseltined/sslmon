@@ -156,14 +156,140 @@ def perform_checks():
         logging.info(f"Certificate checks complete: {checked_count} successful, {error_count} errors")
     except Exception as e:
         logging.exception("Error writing %s: %s", RESULTS_PATH, e)
+    
+    # Send email notifications if configured
+    try:
+        send_notifications(data)
+    except Exception as e:
+        logging.exception(f"Error sending notifications: {e}")
+
+
+def send_notifications(data):
+    """Send email notifications based on thresholds and settings."""
+    cfg = mail.cfg
+    if not cfg or not cfg.get('smtp_host'):
+        return  # Email not configured
+    
+    warning_threshold = cfg.get('alert_threshold_warning', 30)
+    critical_threshold = cfg.get('alert_threshold_critical', 14)
+    
+    for record in data:
+        domain = record.get('domain')
+        days = record.get('days_remaining')
+        expires = record.get('expires')
+        issuer = record.get('issuer')
+        error = record.get('error')
+        
+        # Skip if there's an error or no valid data
+        if error or days is None or days < 0:
+            continue
+        
+        # Check if alert should be sent
+        is_critical = days <= critical_threshold
+        is_warning = days <= warning_threshold
+        
+        if is_critical or is_warning:
+            # Check if we should send based on frequency settings
+            if should_send_alert(record, is_critical):
+                try:
+                    result = mail.send_alert(domain, days, expires, issuer, is_critical)
+                    if result:
+                        record['last_alert_sent'] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                        record['last_alert_level'] = 'critical' if is_critical else 'warning'
+                        logging.info(f"Sent {'critical' if is_critical else 'warning'} alert for {domain}")
+                    else:
+                        logging.warning(f"Failed to send alert for {domain}")
+                except Exception as e:
+                    logging.exception(f"Error sending alert for {domain}: {e}")
+
+
+def should_send_alert(record, is_critical):
+    """Determine if an alert should be sent based on frequency settings."""
+    cfg = mail.cfg
+    frequency = cfg.get('alert_frequency', 'once')
+    
+    last_sent = record.get('last_alert_sent')
+    last_level = record.get('last_alert_level')
+    
+    # Always send if never sent before
+    if not last_sent:
+        return True
+    
+    # Always send critical if previous was warning
+    if is_critical and last_level == 'warning':
+        return True
+    
+    # Check frequency settings
+    if frequency == 'once':
+        return False  # Already sent
+    
+    try:
+        last_sent_dt = datetime.strptime(last_sent, "%Y-%m-%d %H:%M:%S")
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        hours_since = (now - last_sent_dt).total_seconds() / 3600
+        
+        if frequency == 'daily' and hours_since >= 24:
+            return True
+        elif frequency == 'every_check' and hours_since >= 24:
+            return True
+        elif frequency == 'weekly' and hours_since >= 168:
+            return True
+    except Exception as e:
+        logging.exception(f"Error checking alert frequency: {e}")
+        return True  # Send if we can't determine
+    
+    return False
+
+
+def check_monthly_report():
+    """Check if monthly report should be sent (on 1st of month)."""
+    cfg = mail.cfg
+    if not cfg or not cfg.get('monthly_report'):
+        return
+    
+    # Check if it's the 1st of the month
+    now = datetime.now(timezone.utc)
+    if now.day != 1:
+        return
+    
+    # Check if we already sent this month
+    last_report_file = "/data/last_monthly_report.txt"
+    current_month = now.strftime("%Y-%m")
+    
+    try:
+        if os.path.exists(last_report_file):
+            with open(last_report_file, 'r') as f:
+                last_report_month = f.read().strip()
+                if last_report_month == current_month:
+                    return  # Already sent this month
+    except Exception as e:
+        logging.exception(f"Error checking last report date: {e}")
+    
+    # Send monthly report
+    try:
+        if os.path.exists(RESULTS_PATH):
+            with open(RESULTS_PATH, 'r') as f:
+                data = json.load(f)
+            
+            result = mail.send_monthly_report(data)
+            if result:
+                # Record that we sent the report
+                with open(last_report_file, 'w') as f:
+                    f.write(current_month)
+                logging.info("Monthly report sent successfully")
+            else:
+                logging.warning("Failed to send monthly report")
+    except Exception as e:
+        logging.exception(f"Error sending monthly report: {e}")
 
 
 def scheduler_loop():
-    """Simple background loop to re‑run perform_checks every 24 hours."""
+    """Simple background loop to re‑run perform_checks every 24 hours."""
     while True:
         time.sleep(24 * 3600)
         logging.info("Scheduled daily SSL check triggered.")
         perform_checks()
+        check_monthly_report()
 
 
 # --------------------------------------------------------------------
@@ -383,6 +509,10 @@ def smtp_config():
         smtp_user = request.form.get("smtp_user", "").strip()
         smtp_pass = request.form.get("smtp_pass", "").strip()
         to_emails = request.form.get("to_emails", "").strip()
+        alert_threshold_warning = request.form.get("alert_threshold_warning", "30").strip()
+        alert_threshold_critical = request.form.get("alert_threshold_critical", "14").strip()
+        alert_frequency = request.form.get("alert_frequency", "once").strip()
+        monthly_report = request.form.get("monthly_report") == "on"
         
         # Validation
         if not smtp_host or not smtp_user or not to_emails:
@@ -392,16 +522,22 @@ def smtp_config():
         
         try:
             smtp_port = int(smtp_port)
+            alert_threshold_warning = int(alert_threshold_warning)
+            alert_threshold_critical = int(alert_threshold_critical)
         except ValueError:
             return render_template("smtp_config.html",
                                    config=mail.get_config_safe(),
-                                   error="SMTP port must be a number")
+                                   error="Port and threshold values must be numbers")
         
         # Save configuration
         cfg = {
             "smtp_host": smtp_host,
             "smtp_port": smtp_port,
-            "smtp_user": smtp_user
+            "smtp_user": smtp_user,
+            "alert_threshold_warning": alert_threshold_warning,
+            "alert_threshold_critical": alert_threshold_critical,
+            "alert_frequency": alert_frequency,
+            "monthly_report": monthly_report
         }
         
         try:
