@@ -179,7 +179,7 @@ function toggleAll(source) {
 
 {% if scanning %}
 // Connect to SSE endpoint for real-time progress
-const eventSource = new EventSource('/network-discovery/scan-progress');
+const eventSource = new EventSource('/network-discovery/scan-progress/{{ scan_id }}');
 
 eventSource.onmessage = function(event) {
   const data = JSON.parse(event.data);

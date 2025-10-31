@@ -40,6 +40,9 @@ logging.basicConfig(
 # Initialize mailer
 mail = mailer.Mailer(MAIL_KEY_PATH, MAIL_CONFIG_PATH)
 
+# Global storage for scan state (needed for SSE which can't use session)
+scan_state = {}
+
 # --------------------------------------------------------------------
 # Authentication functions
 # --------------------------------------------------------------------
@@ -1033,14 +1036,19 @@ def network_discovery_auto():
         if len(all_ips) > 254:
             all_ips = all_ips[:254]
         
-        # Store in session for SSE endpoint
-        session['scan_ips'] = all_ips
-        session['scan_type'] = 'auto'
+        # Generate scan ID and store in global state (session doesn't work with SSE)
+        scan_id = secrets.token_hex(8)
+        scan_state[scan_id] = {
+            'type': 'ip',
+            'targets': all_ips,
+            'user': session.get('user_id', 'admin')
+        }
         
         # Redirect to progress page
         return render_template("network_discovery.html",
                                scanning=True,
-                               scan_count=len(all_ips))
+                               scan_count=len(all_ips),
+                               scan_id=scan_id)
     
     except Exception as e:
         logging.exception(f"Error in auto-discovery: {e}")
@@ -1063,14 +1071,19 @@ def network_discovery_manual():
         if len(ips) > 254:
             ips = ips[:254]
         
-        # Store in session for SSE endpoint
-        session['scan_ips'] = ips
-        session['scan_type'] = 'manual'
+        # Generate scan ID and store in global state
+        scan_id = secrets.token_hex(8)
+        scan_state[scan_id] = {
+            'type': 'ip',
+            'targets': ips,
+            'user': session.get('user_id', 'admin')
+        }
         
         # Redirect to progress page
         return render_template("network_discovery.html",
                                scanning=True,
-                               scan_count=len(ips))
+                               scan_count=len(ips),
+                               scan_id=scan_id)
     
     except Exception as e:
         logging.exception(f"Error in manual scan: {e}")
@@ -1096,99 +1109,90 @@ def network_discovery_dns():
             return render_template("network_discovery.html",
                                    error="No hosts found in DNS zone (zone transfer may be restricted)")
         
-        # Store hostnames for SSE endpoint
-        session['scan_hostnames'] = hostnames
-        session['scan_type'] = 'dns'
+        # Generate scan ID and store in global state
+        scan_id = secrets.token_hex(8)
+        scan_state[scan_id] = {
+            'type': 'dns',
+            'targets': hostnames,
+            'user': session.get('user_id', 'admin')
+        }
         
         # Redirect to progress page
         return render_template("network_discovery.html",
                                scanning=True,
-                               scan_count=len(hostnames))
+                               scan_count=len(hostnames),
+                               scan_id=scan_id)
     
     except Exception as e:
         logging.exception(f"Error in DNS query: {e}")
         return render_template("network_discovery.html", error=f"Error: {str(e)}")
 
 
-@app.route("/network-discovery/scan-progress")
+@app.route("/network-discovery/scan-progress/<scan_id>")
 @login_required
-def network_discovery_scan_progress():
+def network_discovery_scan_progress(scan_id):
     """SSE endpoint for real-time scan progress."""
     from flask import Response
     import json
     
     def generate():
         """Stream scan progress events."""
-        scan_type = session.get('scan_type')
+        # Get scan info from global state
+        scan_info = scan_state.get(scan_id)
         
-        if scan_type in ('auto', 'manual'):
-            ips = session.get('scan_ips', [])
-            if not ips:
-                yield f"data: {json.dumps({'error': 'No IPs to scan'})}
+        if not scan_info:
+            yield f"data: {json.dumps({'error': 'Scan not found or expired'})}
 
 "
-                return
+            return
+        
+        scan_type = scan_info['type']
+        targets = scan_info['targets']
+        
+        if not targets:
+            yield f"data: {json.dumps({'error': 'No targets to scan'})}
+
+"
+            return
+        
+        total = len(targets)
+        discovered = []
+        
+        # Scan all targets
+        for idx, target in enumerate(targets):
+            result = network_scanner.scan_host(target)
+            if result.get('has_ssl'):
+                discovered.append(result)
             
-            total = len(ips)
-            discovered = []
-            
-            for idx, ip in enumerate(ips):
-                result = network_scanner.scan_host(ip)
-                if result.get('has_ssl'):
-                    discovered.append(result)
-                
-                progress = {
-                    'current': idx + 1,
-                    'total': total,
-                    'percent': int((idx + 1) / total * 100),
-                    'discovered_count': len(discovered)
-                }
-                yield f"data: {json.dumps(progress)}
+            progress = {
+                'current': idx + 1,
+                'total': total,
+                'percent': int((idx + 1) / total * 100),
+                'discovered_count': len(discovered)
+            }
+            yield f"data: {json.dumps(progress)}
 
 "
             
-            # Store results in session
-            session['discovered_hosts'] = discovered
-            
-            # Send completion event
-            yield f"data: {json.dumps({'complete': True, 'discovered': discovered})}
+            # Rate limiting for DNS scans
+            if scan_type == 'dns':
+                time.sleep(0.2)
+        
+        # Store results and cleanup
+        scan_state[scan_id]['discovered'] = discovered
+        session['discovered_hosts'] = discovered
+        
+        # Send completion event
+        yield f"data: {json.dumps({'complete': True, 'discovered': discovered})}
 
 "
         
-        elif scan_type == 'dns':
-            hostnames = session.get('scan_hostnames', [])
-            if not hostnames:
-                yield f"data: {json.dumps({'error': 'No hostnames to scan'})}
-
-"
-                return
-            
-            total = len(hostnames)
-            discovered = []
-            
-            for idx, hostname in enumerate(hostnames):
-                result = network_scanner.scan_host(hostname)
-                if result.get('has_ssl'):
-                    discovered.append(result)
-                
-                progress = {
-                    'current': idx + 1,
-                    'total': total,
-                    'percent': int((idx + 1) / total * 100),
-                    'discovered_count': len(discovered)
-                }
-                yield f"data: {json.dumps(progress)}
-
-"
-                time.sleep(0.2)  # Rate limiting
-            
-            # Store results in session
-            session['discovered_hosts'] = discovered
-            
-            # Send completion event
-            yield f"data: {json.dumps({'complete': True, 'discovered': discovered})}
-
-"
+        # Cleanup old scan data after some time
+        def cleanup():
+            time.sleep(300)  # Keep for 5 minutes
+            scan_state.pop(scan_id, None)
+        
+        threading.Thread(target=cleanup, daemon=True).start()
     
     return Response(generate(), mimetype='text/event-stream')
 
