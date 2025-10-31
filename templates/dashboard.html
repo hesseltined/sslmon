@@ -41,7 +41,15 @@
     {% for row in data %}
       {% set has_error = row.error %}
       {% set days = row.days_remaining|int %}
-      {% set pct = [max(min(days,90),0)/90*100,100]|first if not has_error else 0 %}
+      {% if has_error %}
+        {% set pct = 0 %}
+      {% elif days > 90 %}
+        {% set pct = 100 %}
+      {% elif days < 0 %}
+        {% set pct = 0 %}
+      {% else %}
+        {% set pct = (days / 90 * 100)|round|int %}
+      {% endif %}
       {% set color =
           'bg-secondary' if has_error else
           ('bg-success' if days>60 else
