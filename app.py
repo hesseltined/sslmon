@@ -653,7 +653,18 @@ def smtp_config():
         }
         
         try:
-            mail.save_config(cfg, smtp_pass, to_emails)
+            # If password is empty, keep the existing one
+            if not smtp_pass and mail.cfg.get('smtp_pass'):
+                cfg['smtp_pass'] = mail.cfg['smtp_pass']  # Preserve encrypted password
+                cfg['to_emails'] = [e.strip() for e in to_emails.split(",") if e.strip()]
+                # Save directly without re-encrypting
+                with open(MAIL_CONFIG_PATH, 'w') as f:
+                    json.dump(cfg, f, indent=2)
+                mail._load()  # Reload config
+            else:
+                # New password provided, use normal save
+                mail.save_config(cfg, smtp_pass, to_emails)
+            
             logging.info("SMTP configuration updated")
             return render_template("smtp_config.html",
                                    config=mail.get_config_safe(),
