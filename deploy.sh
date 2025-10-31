@@ -10,15 +10,11 @@ echo "SSLMon v3.9 Deployment Script"
 echo "========================================="
 echo ""
 
-# Move uploaded files to production locations
-echo "[1/6] Moving uploaded files to /opt/sslmon/..."
-sudo cp /tmp/cert_checker.py /opt/sslmon/cert_checker.py
-sudo cp /tmp/app.py /opt/sslmon/app.py
-sudo cp /tmp/dashboard.html /opt/sslmon/templates/dashboard.html
-sudo cp /tmp/domains.html /opt/sslmon/templates/domains.html
-sudo chown root:root /opt/sslmon/cert_checker.py /opt/sslmon/app.py
-sudo chown root:root /opt/sslmon/templates/dashboard.html /opt/sslmon/templates/domains.html
-echo "   Files moved successfully."
+# Pull latest code from git
+echo "[1/6] Pulling latest code from GitHub..."
+cd /opt/sslmon
+sudo git pull origin main
+echo "   Code updated successfully."
 echo ""
 
 # Verify files are in place

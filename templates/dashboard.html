@@ -12,12 +12,13 @@
   <div class="container-fluid">
     <a class="navbar-brand" href="/">SSLMon</a>
     <div class="d-flex">
-      <form method="POST" action="/check_now" class="d-inline">
-        <button type="submit" class="btn btn-sm btn-success me-2">Check Now</button>
-      </form>
+      <a class="btn btn-sm btn-light me-2" href="/">Dashboard</a>
+      <a class="btn btn-sm btn-outline-light me-2" href="/domains">Manage Domains</a>
       <a class="btn btn-sm btn-outline-light me-2" href="/overview">Overview</a>
       <a class="btn btn-sm btn-outline-light me-2" href="/admin">Admin</a>
-      <a class="btn btn-sm btn-outline-light" href="/logout">Logout</a>
+      <form method="POST" action="/check_now" class="d-inline ms-2">
+        <button type="submit" class="btn btn-sm btn-success">Check Now</button>
+      </form>
     </div>
   </div>
 </nav>
