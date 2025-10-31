@@ -1015,7 +1015,7 @@ def network_discovery():
 @app.route("/network-discovery/auto", methods=["POST"])
 @login_required
 def network_discovery_auto():
-    """Auto-detect and scan local networks."""
+    """Auto-detect and scan local networks - start async scan."""
     try:
         networks = network_scanner.get_local_networks()
         
@@ -1023,7 +1023,7 @@ def network_discovery_auto():
             return render_template("network_discovery.html", 
                                    error="No local networks detected")
         
-        # Scan all detected networks (limit to 254 IPs to prevent timeouts)
+        # Calculate IPs
         all_ips = []
         for network in networks:
             ips = network_scanner.parse_ip_range(network)
@@ -1032,18 +1032,15 @@ def network_discovery_auto():
         # Limit scan size
         if len(all_ips) > 254:
             all_ips = all_ips[:254]
-            logging.warning(f"Limiting scan to first 254 hosts")
         
-        logging.info(f"Auto-scanning {len(all_ips)} hosts on networks: {networks}")
-        discovered = network_scanner.scan_network(all_ips)
-        logging.info(f"Scan complete: found {len(discovered)} hosts with SSL")
+        # Store in session for SSE endpoint
+        session['scan_ips'] = all_ips
+        session['scan_type'] = 'auto'
         
-        # Store in session for add-selected route
-        session['discovered_hosts'] = discovered
-        
+        # Redirect to progress page
         return render_template("network_discovery.html",
-                               discovered=discovered,
-                               success=f"Scanned {len(all_ips)} hosts, found {len(discovered)} with SSL")
+                               scanning=True,
+                               scan_count=len(all_ips))
     
     except Exception as e:
         logging.exception(f"Error in auto-discovery: {e}")
@@ -1053,7 +1050,7 @@ def network_discovery_auto():
 @app.route("/network-discovery/manual", methods=["POST"])
 @login_required
 def network_discovery_manual():
-    """Manually scan specified IP range."""
+    """Manually scan specified IP range - start async scan."""
     ip_range = request.form.get("ip_range", "").strip()
     
     if not ip_range:
@@ -1061,16 +1058,19 @@ def network_discovery_manual():
     
     try:
         ips = network_scanner.parse_ip_range(ip_range)
-        logging.info(f"Manual scanning {len(ips)} hosts from range: {ip_range}")
         
-        discovered = network_scanner.scan_network(ips)
+        # Limit scan size
+        if len(ips) > 254:
+            ips = ips[:254]
         
-        # Store in session
-        session['discovered_hosts'] = discovered
+        # Store in session for SSE endpoint
+        session['scan_ips'] = ips
+        session['scan_type'] = 'manual'
         
+        # Redirect to progress page
         return render_template("network_discovery.html",
-                               discovered=discovered,
-                               success=f"Scanned {len(ips)} hosts, found {len(discovered)} with SSL")
+                               scanning=True,
+                               scan_count=len(ips))
     
     except Exception as e:
         logging.exception(f"Error in manual scan: {e}")
@@ -1080,7 +1080,7 @@ def network_discovery_manual():
 @app.route("/network-discovery/dns", methods=["POST"])
 @login_required
 def network_discovery_dns():
-    """Query DNS zone for hosts."""
+    """Query DNS zone for hosts - start async scan."""
     dns_server = request.form.get("dns_server", "").strip()
     domain_zone = request.form.get("domain_zone", "").strip()
     
@@ -1096,24 +1096,101 @@ def network_discovery_dns():
             return render_template("network_discovery.html",
                                    error="No hosts found in DNS zone (zone transfer may be restricted)")
         
-        # Scan discovered hostnames
-        discovered = []
-        for hostname in hostnames:
-            result = network_scanner.scan_host(hostname)
-            if result.get('has_ssl'):
-                discovered.append(result)
-            time.sleep(0.2)  # Rate limiting
+        # Store hostnames for SSE endpoint
+        session['scan_hostnames'] = hostnames
+        session['scan_type'] = 'dns'
         
-        # Store in session
-        session['discovered_hosts'] = discovered
-        
+        # Redirect to progress page
         return render_template("network_discovery.html",
-                               discovered=discovered,
-                               success=f"Found {len(hostnames)} hosts in DNS, {len(discovered)} with SSL")
+                               scanning=True,
+                               scan_count=len(hostnames))
     
     except Exception as e:
         logging.exception(f"Error in DNS query: {e}")
         return render_template("network_discovery.html", error=f"Error: {str(e)}")
+
+
+@app.route("/network-discovery/scan-progress")
+@login_required
+def network_discovery_scan_progress():
+    """SSE endpoint for real-time scan progress."""
+    from flask import Response
+    import json
+    
+    def generate():
+        """Stream scan progress events."""
+        scan_type = session.get('scan_type')
+        
+        if scan_type in ('auto', 'manual'):
+            ips = session.get('scan_ips', [])
+            if not ips:
+                yield f"data: {json.dumps({'error': 'No IPs to scan'})}
+
+"
+                return
+            
+            total = len(ips)
+            discovered = []
+            
+            for idx, ip in enumerate(ips):
+                result = network_scanner.scan_host(ip)
+                if result.get('has_ssl'):
+                    discovered.append(result)
+                
+                progress = {
+                    'current': idx + 1,
+                    'total': total,
+                    'percent': int((idx + 1) / total * 100),
+                    'discovered_count': len(discovered)
+                }
+                yield f"data: {json.dumps(progress)}
+
+"
+            
+            # Store results in session
+            session['discovered_hosts'] = discovered
+            
+            # Send completion event
+            yield f"data: {json.dumps({'complete': True, 'discovered': discovered})}
+
+"
+        
+        elif scan_type == 'dns':
+            hostnames = session.get('scan_hostnames', [])
+            if not hostnames:
+                yield f"data: {json.dumps({'error': 'No hostnames to scan'})}
+
+"
+                return
+            
+            total = len(hostnames)
+            discovered = []
+            
+            for idx, hostname in enumerate(hostnames):
+                result = network_scanner.scan_host(hostname)
+                if result.get('has_ssl'):
+                    discovered.append(result)
+                
+                progress = {
+                    'current': idx + 1,
+                    'total': total,
+                    'percent': int((idx + 1) / total * 100),
+                    'discovered_count': len(discovered)
+                }
+                yield f"data: {json.dumps(progress)}
+
+"
+                time.sleep(0.2)  # Rate limiting
+            
+            # Store results in session
+            session['discovered_hosts'] = discovered
+            
+            # Send completion event
+            yield f"data: {json.dumps({'complete': True, 'discovered': discovered})}
+
+"
+    
+    return Response(generate(), mimetype='text/event-stream')
 
 
 @app.route("/network-discovery/add-selected", methods=["POST"])
