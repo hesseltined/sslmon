@@ -15,6 +15,7 @@ from flask import Flask, render_template, jsonify, send_file, request, redirect,
 
 # Import certificate checker module
 import cert_checker
+import mailer
 
 # --------------------------------------------------------------------
 # Flask setup
@@ -25,6 +26,8 @@ app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(16))
 LOG_PATH = "/data/sslmon.log"
 RESULTS_PATH = "/data/results.json"
 AUTH_PATH = "/data/auth.json"
+MAIL_CONFIG_PATH = "/data/mail_config.json"
+MAIL_KEY_PATH = "/data/fernet.key"
 
 os.makedirs("/data", exist_ok=True)
 logging.basicConfig(
@@ -32,6 +35,9 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
+
+# Initialize mailer
+mail = mailer.Mailer(MAIL_KEY_PATH, MAIL_CONFIG_PATH)
 
 # --------------------------------------------------------------------
 # Authentication functions
@@ -362,6 +368,78 @@ def admin_page():
     return render_template("admin.html",
                            log_preview=log_preview,
                            disk=disk)
+
+
+# ---------------------------------------------------------------------
+# SMTP Configuration
+# ---------------------------------------------------------------------
+@app.route("/admin/smtp", methods=["GET", "POST"])
+@login_required
+def smtp_config():
+    """Configure SMTP settings for email notifications."""
+    if request.method == "POST":
+        smtp_host = request.form.get("smtp_host", "").strip()
+        smtp_port = request.form.get("smtp_port", "587").strip()
+        smtp_user = request.form.get("smtp_user", "").strip()
+        smtp_pass = request.form.get("smtp_pass", "").strip()
+        to_emails = request.form.get("to_emails", "").strip()
+        
+        # Validation
+        if not smtp_host or not smtp_user or not to_emails:
+            return render_template("smtp_config.html",
+                                   config=mail.get_config_safe(),
+                                   error="SMTP host, user, and recipient emails are required")
+        
+        try:
+            smtp_port = int(smtp_port)
+        except ValueError:
+            return render_template("smtp_config.html",
+                                   config=mail.get_config_safe(),
+                                   error="SMTP port must be a number")
+        
+        # Save configuration
+        cfg = {
+            "smtp_host": smtp_host,
+            "smtp_port": smtp_port,
+            "smtp_user": smtp_user
+        }
+        
+        try:
+            mail.save_config(cfg, smtp_pass, to_emails)
+            logging.info("SMTP configuration updated")
+            return render_template("smtp_config.html",
+                                   config=mail.get_config_safe(),
+                                   success="SMTP configuration saved successfully")
+        except Exception as e:
+            logging.exception(f"Error saving SMTP config: {e}")
+            return render_template("smtp_config.html",
+                                   config=mail.get_config_safe(),
+                                   error=f"Error saving configuration: {str(e)}")
+    
+    # GET - show form
+    return render_template("smtp_config.html", config=mail.get_config_safe())
+
+
+@app.route("/admin/smtp/test", methods=["POST"])
+@login_required
+def smtp_test():
+    """Send a test email to verify SMTP configuration."""
+    try:
+        result = mail.send_test()
+        if result is True:
+            return render_template("smtp_config.html",
+                                   config=mail.get_config_safe(),
+                                   success="Test email sent successfully! Check your inbox.")
+        else:
+            return render_template("smtp_config.html",
+                                   config=mail.get_config_safe(),
+                                   error=f"Failed to send test email: {result}")
+    except Exception as e:
+        logging.exception(f"Error sending test email: {e}")
+        return render_template("smtp_config.html",
+                               config=mail.get_config_safe(),
+                               error=f"Error: {str(e)}")
+
 
 # ---------------------------------------------------------------------
 # Check Now - Manual certificate check trigger

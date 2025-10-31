@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SMTP Configuration – SSLMon</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+</head>
+<body class="bg-light">
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="/">SSLMon</a>
+    <div class="d-flex">
+      <a class="btn btn-sm btn-outline-light me-2" href="/">Dashboard</a>
+      <a class="btn btn-sm btn-outline-light me-2" href="/domains">Manage Domains</a>
+      <a class="btn btn-sm btn-outline-light me-2" href="/overview">Overview</a>
+      <a class="btn btn-sm btn-outline-light me-2" href="/admin">Admin</a>
+      <a class="btn btn-sm btn-outline-light" href="/logout">Logout</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container my-4">
+<h3>SMTP Configuration</h3>
+<p class="text-muted">Configure email notifications for certificate expiration alerts</p>
+
+{% if success %}
+<div class="alert alert-success">{{ success }}</div>
+{% endif %}
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      <div class="mb-3">
+        <label for="smtp_host" class="form-label">SMTP Server</label>
+        <input type="text" class="form-control" id="smtp_host" name="smtp_host" 
+               value="{{ config.smtp_host or '' }}" 
+               placeholder="smtp.gmail.com" required>
+        <div class="form-text">Your mail server hostname</div>
+      </div>
+
+      <div class="mb-3">
+        <label for="smtp_port" class="form-label">SMTP Port</label>
+        <input type="number" class="form-control" id="smtp_port" name="smtp_port" 
+               value="{{ config.smtp_port or 587 }}" required>
+        <div class="form-text">Usually 587 (STARTTLS) or 465 (SSL)</div>
+      </div>
+
+      <div class="mb-3">
+        <label for="smtp_user" class="form-label">SMTP Username</label>
+        <input type="text" class="form-control" id="smtp_user" name="smtp_user" 
+               value="{{ config.smtp_user or '' }}" 
+               placeholder="alerts@example.com" required>
+        <div class="form-text">Email address to send from</div>
+      </div>
+
+      <div class="mb-3">
+        <label for="smtp_pass" class="form-label">SMTP Password</label>
+        <input type="password" class="form-control" id="smtp_pass" name="smtp_pass" 
+               placeholder="Leave blank to keep existing password">
+        <div class="form-text">Password will be encrypted and stored securely</div>
+      </div>
+
+      <div class="mb-3">
+        <label for="to_emails" class="form-label">Alert Recipients</label>
+        <input type="text" class="form-control" id="to_emails" name="to_emails" 
+               value="{{ config.to_emails|join(', ') if config.to_emails else '' }}" 
+               placeholder="admin@example.com, security@example.com" required>
+        <div class="form-text">Comma-separated list of email addresses</div>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Save Configuration</button>
+    </form>
+  </div>
+</div>
+
+{% if config.smtp_host %}
+<div class="card mt-4">
+  <div class="card-body">
+    <h5 class="card-title">Test Email Configuration</h5>
+    <p class="card-text">Send a test email to verify your SMTP settings are working correctly.</p>
+    <form method="post" action="/admin/smtp/test">
+      <button type="submit" class="btn btn-success">Send Test Email</button>
+    </form>
+  </div>
+</div>
+
+<div class="card mt-4">
+  <div class="card-body">
+    <h5 class="card-title">Current Configuration</h5>
+    <table class="table table-sm">
+      <tr>
+        <th>SMTP Server:</th>
+        <td>{{ config.smtp_host }}</td>
+      </tr>
+      <tr>
+        <th>Port:</th>
+        <td>{{ config.smtp_port }}</td>
+      </tr>
+      <tr>
+        <th>Username:</th>
+        <td>{{ config.smtp_user }}</td>
+      </tr>
+      <tr>
+        <th>Password:</th>
+        <td>{{ config.smtp_pass }}</td>
+      </tr>
+      <tr>
+        <th>Recipients:</th>
+        <td>{{ config.to_emails|join(', ') if config.to_emails else 'None' }}</td>
+      </tr>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<p class="mt-4">
+  <a href="/admin" class="btn btn-secondary">Back to Admin</a>
+</p>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
