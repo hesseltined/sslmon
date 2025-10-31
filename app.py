@@ -7,8 +7,11 @@ import time
 import shutil
 import subprocess
 import ssl
+import hashlib
+import secrets
+from functools import wraps
 from datetime import datetime, timezone
-from flask import Flask, render_template, jsonify, send_file, request, redirect, url_for
+from flask import Flask, render_template, jsonify, send_file, request, redirect, url_for, session, flash
 
 # Import certificate checker module
 import cert_checker
@@ -17,9 +20,11 @@ import cert_checker
 # Flask setup
 # --------------------------------------------------------------------
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(16))
 
 LOG_PATH = "/data/sslmon.log"
 RESULTS_PATH = "/data/results.json"
+AUTH_PATH = "/data/auth.json"
 
 os.makedirs("/data", exist_ok=True)
 logging.basicConfig(
@@ -27,6 +32,46 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
+
+# --------------------------------------------------------------------
+# Authentication functions
+# --------------------------------------------------------------------
+def hash_password(password):
+    """Hash password using SHA-256."""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def load_auth_config():
+    """Load authentication configuration."""
+    if os.path.exists(AUTH_PATH):
+        with open(AUTH_PATH, 'r') as f:
+            return json.load(f)
+    return {}
+
+def save_auth_config(config):
+    """Save authentication configuration."""
+    with open(AUTH_PATH, 'w') as f:
+        json.dump(config, f, indent=2)
+
+def is_setup_complete():
+    """Check if initial setup (admin password) is complete."""
+    config = load_auth_config()
+    return 'admin_password_hash' in config
+
+def verify_password(password):
+    """Verify admin password."""
+    config = load_auth_config()
+    if 'admin_password_hash' not in config:
+        return False
+    return hash_password(password) == config['admin_password_hash']
+
+def login_required(f):
+    """Decorator to require login for routes."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('logged_in'):
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 # --------------------------------------------------------------------
 # Utility functions
@@ -118,7 +163,66 @@ def scheduler_loop():
 # --------------------------------------------------------------------
 # Routes
 # --------------------------------------------------------------------
+
+# --------------------------------------------------------------------
+# Authentication routes
+# --------------------------------------------------------------------
+@app.route("/setup", methods=["GET", "POST"])
+def setup():
+    """Initial setup page for setting admin password."""
+    if is_setup_complete():
+        return redirect(url_for('login'))
+    
+    if request.method == "POST":
+        password = request.form.get("password", "").strip()
+        confirm = request.form.get("confirm", "").strip()
+        
+        if not password:
+            return render_template("setup.html", error="Password is required")
+        
+        if len(password) < 8:
+            return render_template("setup.html", error="Password must be at least 8 characters")
+        
+        if password != confirm:
+            return render_template("setup.html", error="Passwords do not match")
+        
+        config = {'admin_password_hash': hash_password(password)}
+        save_auth_config(config)
+        logging.info("Initial admin password configured")
+        return redirect(url_for('login'))
+    
+    return render_template("setup.html")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    """Login page."""
+    if not is_setup_complete():
+        return redirect(url_for('setup'))
+    
+    if request.method == "POST":
+        password = request.form.get("password", "").strip()
+        
+        if verify_password(password):
+            session['logged_in'] = True
+            logging.info("Admin logged in")
+            return redirect(url_for('dashboard'))
+        else:
+            return render_template("login.html", error="Invalid password")
+    
+    return render_template("login.html")
+
+
+@app.route("/logout")
+def logout():
+    """Logout and clear session."""
+    session.clear()
+    logging.info("Admin logged out")
+    return redirect(url_for('login'))
+
+
 @app.route("/")
+@login_required
 def dashboard():
     data = []
     if os.path.exists(RESULTS_PATH):
@@ -150,6 +254,7 @@ def dashboard():
 
 
 @app.route("/api/results")
+@login_required
 def api_results():
     if os.path.exists(RESULTS_PATH):
         with open(RESULTS_PATH) as f:
@@ -159,6 +264,7 @@ def api_results():
 
 
 @app.route("/health")
+@login_required
 def health():
     data = []
     if os.path.exists(RESULTS_PATH):
@@ -172,6 +278,7 @@ def health():
 
 
 @app.route("/admin/logs")
+@login_required
 def admin_logs():
     if not os.path.exists(LOG_PATH):
         return "No log file yet."
@@ -184,6 +291,7 @@ def admin_logs():
 # Overview page with charts
 # --------------------------------------------------------------------
 @app.route("/overview", endpoint="overview_page")
+@login_required
 def overview():
     domains = []
     try:
@@ -212,6 +320,7 @@ def overview():
 
 
 @app.route("/api/overviewdata")
+@login_required
 def overview_data():
     total, used, free = shutil.disk_usage("/data")
     disk = {
@@ -231,6 +340,7 @@ def overview_data():
 # Admin page
 # --------------------------------------------------------------------
 @app.route("/admin")
+@login_required
 def admin_page():
     # If you already have an admin.html later, this will render it.
     log_preview = ""
@@ -257,6 +367,7 @@ def admin_page():
 # Check Now - Manual certificate check trigger
 # ---------------------------------------------------------------------
 @app.route("/check_now", methods=["POST"])
+@login_required
 def check_now():
     """Manually trigger certificate checks for all domains."""
     logging.info("Manual certificate check triggered via Check Now button")
@@ -271,6 +382,7 @@ def check_now():
 # Domains page (handles existing Add button link)
 # ---------------------------------------------------------------------
 @app.route("/domains", methods=["GET", "POST"])
+@login_required
 def domains_page():
     """
     Handles the Add button form linked to /domains.
@@ -368,6 +480,7 @@ def domains_page():
 # Delete domain
 # ---------------------------------------------------------------------
 @app.route("/domains/delete", methods=["POST"])
+@login_required
 def delete_domain():
     """Delete a domain from the monitoring list."""
     domain = request.form.get("domain", "").strip().lower()
