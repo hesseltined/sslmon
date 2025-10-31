@@ -168,6 +168,23 @@ function toggleAll(source) {
     checkboxes[i].checked = source.checked;
   }
 }
+
+// Show loading spinner on form submit
+document.querySelectorAll('form').forEach(form => {
+  form.addEventListener('submit', function(e) {
+    const btn = this.querySelector('button[type=submit]');
+    if (btn && !btn.disabled) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Scanning...';
+      
+      // Show alert
+      const alert = document.createElement('div');
+      alert.className = 'alert alert-info mt-3';
+      alert.innerHTML = '<div class="d-flex align-items-center"><div class="spinner-border spinner-border-sm me-2"></div><span>Scanning network... This may take 30-60 seconds for large networks. Please wait.</span></div>';
+      this.appendChild(alert);
+    }
+  });
+});
 </script>
 </body>
 </html>

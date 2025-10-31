@@ -1023,14 +1023,20 @@ def network_discovery_auto():
             return render_template("network_discovery.html", 
                                    error="No local networks detected")
         
-        # Scan all detected networks
+        # Scan all detected networks (limit to 254 IPs to prevent timeouts)
         all_ips = []
         for network in networks:
             ips = network_scanner.parse_ip_range(network)
             all_ips.extend(ips)
         
+        # Limit scan size
+        if len(all_ips) > 254:
+            all_ips = all_ips[:254]
+            logging.warning(f"Limiting scan to first 254 hosts")
+        
         logging.info(f"Auto-scanning {len(all_ips)} hosts on networks: {networks}")
         discovered = network_scanner.scan_network(all_ips)
+        logging.info(f"Scan complete: found {len(discovered)} hosts with SSL")
         
         # Store in session for add-selected route
         session['discovered_hosts'] = discovered
