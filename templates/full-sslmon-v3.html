@@ -1,0 +1,363 @@
+<!-- SAVE THIS AS /opt/sslmon/full-sslmon-v3.html so you can copy all at once -->
+<!DOCTYPE html>
+<html>
+<body>
+<pre>
+
+==========================
+  FILE: /opt/sslmon/app.py
+==========================
+</pre>
+<code>
+from flask import Flask, request, jsonify, render_template, redirect, url_for, session
+from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import datetime
+import os, sqlite3, ssl, socket, smtplib, shutil
+from email.mime.text import MIMEText
+from mailer import Mailer
+from db import init_db, save_result, get_latest_results, prune_old_results
+
+app = Flask(__name__)
+app.secret_key = "sslmon-session-key"
+DB_PATH = "/data/sslmon.db"
+KEY_PATH = "/data/fernet.key"
+CONFIG_PATH = "/data/config.json"
+
+mailer = Mailer(KEY_PATH, CONFIG_PATH)
+init_db(DB_PATH)
+
+def get_cert_info(host, port=443):
+    ctx = ssl.create_default_context()
+    with socket.create_connection((host, port), timeout=5) as sock:
+        with ctx.wrap_socket(sock, server_hostname=host) as ssock:
+            cert = ssock.getpeercert()
+            expires = datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
+            days_left = (expires - datetime.utcnow()).days
+            return {"host": host, "expires": expires.isoformat(), "days_left": days_left}
+
+def perform_checks():
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT domain FROM domains")
+    domains = [r[0] for r in cur.fetchall()]
+    conn.close()
+
+    results = []
+    for d in domains:
+        try:
+            info = get_cert_info(d)
+            save_result(DB_PATH, d, info["expires"], info["days_left"])
+            results.append(info)
+            # email alerts
+            if info["days_left"] <= 30:
+                mailer.send_alert(d, info, critical=True)
+            elif info["days_left"] <= 60:
+                mailer.send_alert(d, info, critical=False)
+        except Exception as e:
+            save_result(DB_PATH, d, "error", -1)
+    prune_old_results(DB_PATH)
+    # disk usage guard
+    free_space = shutil.disk_usage("/data").free / (1024**3)
+    if free_space < 1:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("DELETE FROM results WHERE checked_at < DATETIME('now','-30 days')")
+        conn.commit()
+        conn.close()
+
+@app.route("/")
+def dashboard():
+    if "user" not in session:
+        return redirect(url_for("login"))
+    data = get_latest_results(DB_PATH)
+    return render_template("dashboard.html", data=data)
+
+@app.route("/api/results")
+def api_results():
+    return jsonify(get_latest_results(DB_PATH))
+
+@app.route("/domains", methods=["POST"])
+def add_domain():
+    if "user" not in session:
+        return redirect(url_for("login"))
+    domain = request.form["domain"].strip().lower()
+    if domain:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("INSERT OR IGNORE INTO domains(domain) VALUES(?)", (domain,))
+        conn.commit()
+        conn.close()
+        perform_checks()
+    return redirect(url_for("dashboard"))
+
+@app.route("/admin", methods=["GET","POST"])
+def admin():
+    if "user" not in session:
+        return redirect(url_for("login"))
+    if request.method == "POST":
+        cfg = {
+            "smtp_host": request.form["smtp_host"],
+            "smtp_port": int(request.form["smtp_port"]),
+            "smtp_user": request.form["smtp_user"],
+        }
+        mailer.save_config(cfg, request.form["smtp_pass"], request.form["to_emails"])
+    cfg = mailer.get_config_safe()
+    return render_template("admin.html", cfg=cfg)
+
+@app.route("/admin/testmail")
+def testmail():
+    if "user" not in session:
+        return redirect(url_for("login"))
+    ok = mailer.send_test()
+    return jsonify({"sent": ok})
+
+@app.route("/login", methods=["GET","POST"])
+def login():
+    if request.method == "POST":
+        user = request.form["user"]
+        pw = request.form["pw"]
+        if user == "admin" and pw == "changeme":
+            session["user"] = user
+            return redirect(url_for("dashboard"))
+        return render_template("login.html", error="Invalid credentials")
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+# Schedule daily run
+scheduler = BackgroundScheduler()
+scheduler.add_job(perform_checks, "interval", hours=24)
+scheduler.start()
+
+if __name__ == "__main__":
+    perform_checks()
+    app.run(host="0.0.0.0", port=8443, ssl_context="adhoc")
+</code>
+
+<pre>
+======================
+  FILE: /opt/sslmon/db.py
+======================
+</pre>
+<code>
+import sqlite3, os
+def init_db(path):
+    conn = sqlite3.connect(path)
+    c = conn.cursor()
+    c.execute("CREATE TABLE IF NOT EXISTS domains(domain TEXT PRIMARY KEY)")
+    c.execute("""CREATE TABLE IF NOT EXISTS results(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        domain TEXT,
+        expires TEXT,
+        days_left INTEGER,
+        checked_at TEXT DEFAULT (datetime('now'))
+    )""")
+    conn.commit()
+    conn.close()
+
+def save_result(path, domain, expires, days_left):
+    conn = sqlite3.connect(path)
+    conn.execute("INSERT INTO results(domain,expires,days_left,checked_at) VALUES(?,?,?,datetime('now'))",
+                 (domain, expires, days_left))
+    conn.commit(); conn.close()
+
+def get_latest_results(path):
+    conn = sqlite3.connect(path)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT domain, expires, days_left, MAX(checked_at)
+        FROM results GROUP BY domain
+    """)
+    rows = cur.fetchall(); conn.close()
+    data = []
+    for r in rows:
+        data.append({"domain": r[0], "expires": r[1], "days_left": r[2], "checked_at": r[3]})
+    return data
+
+def prune_old_results(path):
+    conn = sqlite3.connect(path)
+    conn.execute("DELETE FROM results WHERE checked_at < DATETIME('now','-180 days')")
+    conn.commit()
+    conn.close()
+</code>
+
+<pre>
+========================
+  FILE: /opt/sslmon/mailer.py
+========================
+</pre>
+<code>
+import os, json, smtplib
+from email.mime.text import MIMEText
+from cryptography.fernet import Fernet
+
+class Mailer:
+    def __init__(self, key_path, cfg_path):
+        self.key_path = key_path
+        self.cfg_path = cfg_path
+        if not os.path.exists(key_path):
+            with open(key_path,"wb") as f: f.write(Fernet.generate_key())
+        self.key = open(key_path,"rb").read()
+        if not os.path.exists(cfg_path):
+            with open(cfg_path,"w") as f: json.dump({}, f)
+        self._load()
+
+    def _load(self):
+        try:
+            with open(self.cfg_path) as f:
+                self.cfg = json.load(f)
+        except Exception:
+            self.cfg = {}
+
+    def encrypt(self, text):
+        return Fernet(self.key).encrypt(text.encode()).decode()
+
+    def decrypt(self, enc):
+        try:
+            return Fernet(self.key).decrypt(enc.encode()).decode()
+        except Exception:
+            return ""
+
+    def save_config(self, cfg, pw, to_emails):
+        enc_pw = self.encrypt(pw)
+        cfg["smtp_pass"] = enc_pw
+        cfg["to_emails"] = [e.strip() for e in to_emails.split(",") if e.strip()]
+        with open(self.cfg_path,"w") as f: json.dump(cfg,f)
+        self._load()
+
+    def get_config_safe(self):
+        out = self.cfg.copy()
+        if "smtp_pass" in out: out["smtp_pass"]="********"
+        return out
+
+    def _connect(self):
+        if not self.cfg: return None
+        pw = self.decrypt(self.cfg.get("smtp_pass",""))
+        s = smtplib.SMTP(self.cfg["smtp_host"], self.cfg.get("smtp_port",587))
+        s.starttls()
+        s.login(self.cfg["smtp_user"], pw)
+        return s
+
+    def _send(self, subject, body):
+        s = self._connect()
+        if not s: return False
+        msg = MIMEText(body)
+        msg["From"] = self.cfg["smtp_user"]
+        msg["To"] = ",".join(self.cfg["to_emails"])
+        msg["Subject"] = subject
+        try:
+            s.send_message(msg)
+            s.quit()
+            return True
+        except Exception:
+            return False
+
+    def send_alert(self, domain, info, critical=False):
+        if not self.cfg: return
+        level = "ACTION REQUIRED" if critical else "Warning"
+        subj = f"{level}: SSL certificate expiring for {domain}"
+        body = f"Domain: {domain}\nExpires: {info['expires']}\nDays Left: {info['days_left']}"
+        self._send(subj, body)
+
+    def send_test(self):
+        if not self.cfg: return False
+        return self._send("SSLMon test email", "This is a test from your SSLMon instance.")
+</code>
+
+<pre>
+===========================
+  FILE: /opt/sslmon/templates/login.html
+===========================
+</pre>
+<code>
+<!doctype html><html><head><title>Login</title>
+<style>body{font-family:sans-serif;margin:3em;}form{max-width:300px;margin:auto;}input{width:100%;padding:10px;margin:5px 0;}
+.btn{background:#007BFF;color:#fff;border:none;padding:10px;width:100%;cursor:pointer;}
+.error{color:red;}</style></head>
+<body><h2>SSLMon Login</h2>
+<form method="POST">
+<input name="user" placeholder="Username" required>
+<input name="pw" type="password" placeholder="Password" required>
+<button class="btn">Login</button>
+{% if error %}<p class="error">{{error}}</p>{% endif %}
+</form></body></html>
+</code>
+
+<pre>
+===========================
+  FILE: /opt/sslmon/templates/dashboard.html
+===========================
+</pre>
+<code>
+<!doctype html><html><head><title>SSLMon</title>
+<style>table{border-collapse:collapse;width:100%;}th,td{padding:8px;border-bottom:1px solid #ddd;}
+.ok{color:green}.warn{color:orange}.crit{color:red}form{margin-top:1em}</style></head>
+<body>
+<h2>SSLMon Dashboard</h2><a href="/admin">Admin Panel</a> | <a href="/logout">Logout</a>
+<table>
+<tr><th>Domain</th><th>Expires</th><th>Days Left</th><th>Checked</th></tr>
+{% for row in data %}
+<tr class="{% if row.days_left>60 %}ok{% elif row.days_left>30 %}warn{% else %}crit{% endif %}">
+<td>{{row.domain}}</td><td>{{row.expires}}</td><td>{{row.days_left}}</td><td>{{row.checked_at}}</td></tr>
+{% endfor %}
+</table>
+<form method="POST" action="/domains">
+<input name="domain" placeholder="Add new domain">
+<button>Add</button>
+</form>
+</body></html>
+</code>
+
+<pre>
+===========================
+  FILE: /opt/sslmon/templates/admin.html
+===========================
+</pre>
+<code>
+<!doctype html><html><head><title>Admin</title></head>
+<body><h2>Admin Panel</h2>
+<a href="/">Dashboard</a> | <a href="/logout">Logout</a>
+<form method="POST">
+<p>SMTP Host: <input name="smtp_host" value="{{cfg.smtp_host}}"></p>
+<p>SMTP Port: <input name="smtp_port" value="{{cfg.smtp_port or 587}}"></p>
+<p>SMTP User: <input name="smtp_user" value="{{cfg.smtp_user}}"></p>
+<p>SMTP Password: <input name="smtp_pass" type="password" placeholder="********"></p>
+<p>Recipient Emails (comma separated):<br><input name="to_emails" value="{{cfg.to_emails|join(',')}}">
+</p>
+<button>Save</button>
+</form>
+<button onclick="fetch('/admin/testmail').then(r=>r.json()).then(j=>alert('Test sent: '+j.sent))">
+Send Test Email
+</button>
+</body></html>
+</code>
+
+<pre>
+==============================
+  FILE: /opt/sslmon/requirements.txt
+==============================
+</pre>
+<code>
+flask
+apscheduler
+cryptography
+</code>
+
+<pre>
+=========================
+  FILE: /opt/sslmon/Dockerfile
+=========================
+</pre>
+<code>
+FROM python:3.12-slim
+WORKDIR /app
+COPY . .
+RUN pip install --no-cache-dir -r requirements.txt
+EXPOSE 8443
+CMD ["python3", "app.py"]
+</code>
+
+<pre>
+</pre>
+</body></html>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SSLMon Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/sslmon.css">
+</head>
+<body class="bg-light">
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="/">SSLMon</a>
+    <div class="d-flex">
+      <form method="POST" action="/check_now" class="d-inline">
+        <button type="submit" class="btn btn-sm btn-success me-2">Check Now</button>
+      </form>
+      <a class="btn btn-sm btn-outline-light me-2" href="/overview">Overview</a>
+      <a class="btn btn-sm btn-outline-light me-2" href="/admin">Admin</a>
+      <a class="btn btn-sm btn-outline-light" href="/logout">Logout</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container my-4">
+  <div class="d-flex justify-content-between align-items-center">
+    <h3>Certificate Status</h3>
+    <div id="refreshBox" class="text-muted small">Refreshing in <span id="refreshTimer">300</span>s</div>
+  </div>
+  <table class="table table-striped align-middle mt-2">
+    <thead class="table-dark">
+      <tr>
+        <th>Domain</th>
+        <th>Issuer</th>
+        <th>Expiry Date</th>
+        <th style="width:25%">Days Remaining</th>
+        <th>Last Checked</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in data %}
+      {% set has_error = row.error is not none %}
+      {% set days = row.days_remaining|int if row.days_remaining is not none else -1 %}
+      {% set pct = [max(min(days,90),0)/90*100,100]|first if not has_error else 0 %}
+      {% set color =
+          'bg-secondary' if has_error else
+          ('bg-success' if days>60 else
+          ('bg-warning text-dark' if days>30 else
+          ('bg-danger' if days>=0 else 'bg-secondary'))) %}
+      <tr>
+        <td>
+          {{ row.domain }}
+          {% if row.is_self_signed %}
+            <span class="badge bg-info text-dark ms-2" title="Self-signed certificate">Self-Signed</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if has_error %}
+            <span class="text-muted">-</span>
+          {% else %}
+            <span title="{{ row.subject }}">{{ row.issuer or 'Unknown' }}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if has_error %}
+            <span class="text-muted">-</span>
+          {% else %}
+            {{ row.expires or 'N/A' }}
+          {% endif %}
+        </td>
+        <td>
+          {% if has_error %}
+            <div class="alert alert-danger py-1 px-2 mb-0" role="alert" title="{{ row.error }}">
+              <small><strong>{{ row.error_type|upper }}:</strong> {{ row.error[:50] }}{% if row.error|length > 50 %}...{% endif %}</small>
+            </div>
+          {% else %}
+            <div class="progress" style="height:22px;">
+              <div class="progress-bar {{ color }}" style="width: {{ pct }}%">
+                {{ days if days>=0 else 'Expired' }} days
+              </div>
+            </div>
+          {% endif %}
+        </td>
+        <td><small>{{ row.checked_at or 'Never' }}</small></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <form class="row g-3 mt-4" method="POST" action="/domains">
+    <div class="col-auto">
+      <input name="domain" class="form-control" placeholder="add new domain" required>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-primary">Add</button>
+    </div>
+  </form>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/static/sslmon.js"></script>
+</body>
+</html>

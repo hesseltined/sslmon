@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SSL Overview</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet"
+ href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+body { padding: 2rem; background:#f8f9fa; }
+.chart-container { position: relative; height: 50vh; }
+</style>
+</head>
+<body>
+<h3 class="mb-4">SSL Monitor – Overview</h3>
+
+<div class="row">
+  <div class="col-md-8 mb-4">
+    <div class="card p-3">
+      <canvas id="sslChart"></canvas>
+    </div>
+  </div>
+  <div class="col-md-4 mb-4">
+    <div class="card p-3">
+      <canvas id="diskChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+const domains = {{ domains|tojson }};
+const disk = {{ disk|tojson }};
+
+// SSL expiry chart
+const ctx1 = document.getElementById('sslChart');
+new Chart(ctx1, {
+  type: 'bar',
+  data: {
+    labels: domains.map(d => d.domain),
+    datasets: [{
+      label: 'Days Left',
+      data: domains.map(d => d.days_left),
+      backgroundColor: domains.map(d => d.days_left <= 14 ? '#dc3545' :
+                                        d.days_left <= 30 ? '#ffc107' : '#198754')
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      title: {display: true, text: 'SSL Expiry (days left)'}
+    },
+    scales: {y: {beginAtZero: true}}
+  }
+});
+
+// Disk usage chart
+const ctx2 = document.getElementById('diskChart');
+new Chart(ctx2, {
+  type: 'doughnut',
+  data: {
+    labels: ['Used GB','Free GB'],
+    datasets: [{
+      data: [disk.used_gb, disk.free_gb],
+      backgroundColor:['#0d6efd','#adb5bd']
+    }]
+  },
+  options: {
+    plugins:{title:{display:true,text:`Disk Usage – ${disk.percent}% used`}}
+  }
+});
+</script>
+</body>
+</html>
