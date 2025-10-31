@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSLMon - SSL Certificate Monitoring System - Documentation</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 2.5em;
+        }
+        .version-badge {
+            background-color: rgba(255,255,255,0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            display: inline-block;
+            font-size: 0.9em;
+        }
+        .section {
+            background: white;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section h2 {
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        .section h3 {
+            color: #764ba2;
+            margin-top: 20px;
+        }
+        .changelog-entry {
+            border-left: 4px solid #667eea;
+            padding-left: 20px;
+            margin-bottom: 25px;
+            background-color: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 4px;
+        }
+        .changelog-entry .version-header {
+            font-weight: bold;
+            font-size: 1.2em;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        .changelog-entry .meta {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        .code-block {
+            background-color: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .field-list {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .field-list li {
+            margin: 8px 0;
+        }
+        .field-name {
+            font-weight: bold;
+            color: #667eea;
+        }
+        .info-box {
+            background-color: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .warning-box {
+            background-color: #fff4e5;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 0.9em;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #667eea;
+            color: white;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>SSLMon</h1>
+        <div class="version-badge">Current Version: v3.9</div>
+        <p>SSL Certificate Monitoring System for Client Environments</p>
+    </div>
+
+    <div class="section">
+        <h2>Project Overview</h2>
+        <p><strong>SSLMon</strong> is a self-contained SSL certificate monitoring solution designed to run within client environments as a Docker container or standalone appliance. It provides automatic certificate expiration monitoring, email alerting, and a web-based dashboard for tracking SSL certificates across internal networks.</p>
+        
+        <div class="info-box">
+            <strong>NOTE:</strong> SSLMon is designed for small to medium client environments that do not maintain a Certificate Authority (CA) server but rely on purchased SSL certificates that must not expire unexpectedly.
+        </div>
+
+        <h3>Key Features</h3>
+        <ul>
+            <li>Automatic SSL certificate monitoring with configurable check intervals</li>
+            <li>Real-time certificate expiration tracking</li>
+            <li>CA issuer identification and self-signed certificate detection</li>
+            <li>Web-based dashboard with Bootstrap 5 UI</li>
+            <li>Email notifications with configurable thresholds</li>
+            <li>HTTPS-enabled web interface</li>
+            <li>Docker containerized for easy deployment</li>
+            <li>Persistent data storage via Docker volumes</li>
+        </ul>
+
+        <h3>Technical Architecture</h3>
+        <table>
+            <tr>
+                <th>Component</th>
+                <th>Technology</th>
+                <th>Purpose</th>
+            </tr>
+            <tr>
+                <td>Backend</td>
+                <td>Python 3.12 + Flask</td>
+                <td>Web application and certificate checking logic</td>
+            </tr>
+            <tr>
+                <td>Frontend</td>
+                <td>Bootstrap 5 + Chart.js</td>
+                <td>Responsive dashboard and visualizations</td>
+            </tr>
+            <tr>
+                <td>Data Persistence</td>
+                <td>JSON files + SQLite (planned)</td>
+                <td>Configuration and certificate status storage</td>
+            </tr>
+            <tr>
+                <td>Containerization</td>
+                <td>Docker</td>
+                <td>Portable deployment across client environments</td>
+            </tr>
+            <tr>
+                <td>Security</td>
+                <td>HTTPS (self-signed or custom cert)</td>
+                <td>Encrypted web access</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Certificate Checker Module (v3.9)</h2>
+        <p>The core certificate checking functionality is provided by the <code>cert_checker.py</code> module, which performs SSL/TLS certificate retrieval and detailed parsing.</p>
+
+        <h3>Module Features</h3>
+        <ul>
+            <li><strong>No Chain Validation:</strong> Connects to endpoints with CERT_NONE to inspect expired or invalid certificates</li>
+            <li><strong>Configurable Timeout:</strong> Default 10-second timeout prevents hanging on unresponsive hosts</li>
+            <li><strong>SNI Support:</strong> Uses server_hostname parameter for proper virtual host certificate selection</li>
+            <li><strong>Self-Signed Detection:</strong> Compares issuer and subject CN plus full distinguished name equality</li>
+            <li><strong>Comprehensive Error Handling:</strong> Categorizes failures (DNS, timeout, refused, SSL, network, unknown)</li>
+            <li><strong>Type-Hinted API:</strong> Full type hints for IDE support and code clarity</li>
+        </ul>
+
+        <h3>Returned Certificate Fields</h3>
+        <div class="field-list">
+            <ul>
+                <li><span class="field-name">domain</span> - The hostname checked</li>
+                <li><span class="field-name">port</span> - The port used (typically 443)</li>
+                <li><span class="field-name">issued</span> - Certificate issue date (YYYY-MM-DD)</li>
+                <li><span class="field-name">expires</span> - Certificate expiry date (YYYY-MM-DD)</li>
+                <li><span class="field-name">days_remaining</span> - Days until expiration (negative if expired)</li>
+                <li><span class="field-name">issuer</span> - Certificate Authority name or full DN</li>
+                <li><span class="field-name">subject</span> - Certificate subject/common name</li>
+                <li><span class="field-name">is_self_signed</span> - Boolean flag for self-signed certificates</li>
+                <li><span class="field-name">tls_version</span> - TLS protocol version used (e.g., TLSv1.3)</li>
+                <li><span class="field-name">checked_at</span> - ISO timestamp of the check</li>
+                <li><span class="field-name">ok</span> - Boolean indicating successful check</li>
+                <li><span class="field-name">error</span> - Error message if check failed (null otherwise)</li>
+                <li><span class="field-name">error_type</span> - Error category: dns, timeout, refused, ssl, network, unknown</li>
+            </ul>
+        </div>
+
+        <h3>Technical Implementation Details</h3>
+        <div class="warning-box">
+            <strong>IMPORTANT:</strong> The module uses <code>verify_mode=ssl.CERT_NONE</code> and <code>check_hostname=False</code> to allow inspection of expired, invalid, or self-signed certificates. This is intentional for monitoring purposes.
+        </div>
+
+        <ul>
+            <li><strong>SSL Context:</strong> PROTOCOL_TLS_CLIENT with no certificate validation</li>
+            <li><strong>Certificate Parsing:</strong> Uses cryptography.x509 library for robust X.509 parsing</li>
+            <li><strong>Timeout Handling:</strong> socket.create_connection with configurable timeout</li>
+            <li><strong>Date Calculations:</strong> Timezone-aware datetime using UTC</li>
+        </ul>
+
+        <h3>CLI Usage for Testing</h3>
+        <div class="code-block">
+# Check multiple domains
+python3 cert_checker.py technologist.services google.com example.com
+
+# Check specific port
+python3 -c "import cert_checker, json; \\
+    print(json.dumps(cert_checker.check_certificate('example.com', port=8443), indent=2))"
+
+# Test error handling
+python3 -c "import cert_checker, json; \\
+    print(json.dumps(cert_checker.check_certificate('invalid-domain.test'), indent=2))"
+        </div>
+
+        <h3>Example Output</h3>
+        <div class="code-block">
+{
+  "domain": "technologist.services",
+  "port": 443,
+  "issued": "2025-10-21",
+  "expires": "2026-01-19",
+  "days_remaining": 79,
+  "issuer": "WE1",
+  "subject": "technologist.services",
+  "is_self_signed": false,
+  "tls_version": "TLSv1.3",
+  "checked_at": "2025-10-31T20:25:52.890535+00:00",
+  "ok": true,
+  "error": null,
+  "error_type": null
+}
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Version History & Changelog</h2>
+
+        <div class="changelog-entry">
+            <div class="version-header">Version 3.9</div>
+            <div class="meta">
+                Date: October 31, 2025<br>
+                Author: Doug Hesseltine
+            </div>
+            <strong>Changes:</strong>
+            <ul>
+                <li>Added cert_checker.py module with robust SSL certificate parsing and error handling</li>
+                <li>Implemented comprehensive certificate field extraction (issuer, subject, dates, self-signed detection)</li>
+                <li>Added support for TLS version detection</li>
+                <li>Implemented error categorization (dns, timeout, refused, ssl, network, unknown)</li>
+                <li>Added CLI interface for module testing</li>
+                <li>Full type hints and docstrings for maintainability</li>
+            </ul>
+            <strong>Technical Details:</strong>
+            <ul>
+                <li>10-second default timeout for connections</li>
+                <li>No certificate chain validation (CERT_NONE)</li>
+                <li>SNI support via server_hostname parameter</li>
+                <li>cryptography.x509 library for X.509 certificate parsing</li>
+                <li>Timezone-aware UTC datetime handling</li>
+            </ul>
+        </div>
+
+        <div class="changelog-entry">
+            <div class="version-header">Version 3.8</div>
+            <div class="meta">
+                Date: October 31, 2025<br>
+                Author: Doug Hesseltine
+            </div>
+            <strong>Changes:</strong>
+            <ul>
+                <li>Dashboard stability fix for null expiry handling</li>
+                <li>Fixed 500 errors when adding domains with pending checks</li>
+                <li>Improved error display in templates</li>
+            </ul>
+        </div>
+
+        <div class="changelog-entry">
+            <div class="version-header">Version 3.7 and Earlier</div>
+            <div class="meta">
+                Date: October 2025<br>
+                Author: Doug Hesseltine
+            </div>
+            <strong>Changes:</strong>
+            <ul>
+                <li>Initial Flask application framework</li>
+                <li>Basic routing (dashboard, admin, overview, domains)</li>
+                <li>Bootstrap 5 UI implementation</li>
+                <li>HTTPS support with self-signed certificates</li>
+                <li>Docker containerization</li>
+                <li>JSON-based data persistence</li>
+                <li>Mailer module with encryption</li>
+                <li>SQLite database module (not yet integrated)</li>
+                <li>Auto-refresh dashboard (5-minute intervals)</li>
+                <li>Chart.js visualizations</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Deployment Information</h2>
+        <h3>Current Production Instance</h3>
+        <ul>
+            <li><strong>URL:</strong> https://sslmon.technologist.services/</li>
+            <li><strong>Server:</strong> sslmon@10.250.0.158</li>
+            <li><strong>Application Path:</strong> /opt/sslmon/</li>
+            <li><strong>Data Path:</strong> /opt/sslmon-data/</li>
+            <li><strong>HTTPS Port:</strong> 8443</li>
+        </ul>
+
+        <h3>Docker Configuration</h3>
+        <div class="code-block">
+# Build image
+docker build -t sslmon:3.9 /opt/sslmon/
+
+# Run container
+docker run -d \\
+  --name sslmon \\
+  -p 8443:8443 \\
+  -v /opt/sslmon-data:/data \\
+  --restart unless-stopped \\
+  sslmon:3.9
+        </div>
+
+        <h3>File Structure</h3>
+        <div class="code-block">
+/opt/sslmon/
+├── app.py              # Main Flask application
+├── cert_checker.py     # Certificate checking module (NEW v3.9)
+├── db.py               # SQLite database module
+├── mailer.py           # Email notification module
+├── Dockerfile          # Container build configuration
+├── requirements.txt    # Python dependencies
+├── templates/          # HTML templates
+│   ├── dashboard.html
+│   ├── overview.html
+│   ├── admin.html
+│   ├── domains.html
+│   └── login.html
+└── static/             # CSS and JavaScript
+    ├── sslmon.css
+    └── sslmon.js
+
+/opt/sslmon-data/       # Persistent data (Docker volume)
+├── results.json        # Certificate status data
+├── config.json         # SMTP and app configuration
+├── sslmon.log          # Application logs
+├── server.crt          # HTTPS certificate
+├── server.key          # HTTPS private key
+└── fernet.key          # Encryption key for passwords
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Roadmap & Future Enhancements</h2>
+        <h3>High Priority</h3>
+        <ul>
+            <li>Integrate cert_checker module into app.py perform_checks() function</li>
+            <li>Add "Check Now" button for manual certificate checks</li>
+            <li>Build configuration/setup page with admin password and SMTP settings</li>
+            <li>Implement authentication system (login/logout with sessions)</li>
+        </ul>
+
+        <h3>Medium Priority</h3>
+        <ul>
+            <li>Integrate email notifications with configurable thresholds</li>
+            <li>Enhance error handling and display in dashboard</li>
+            <li>Add delete domain functionality</li>
+            <li>Display detailed certificate information (CA, chain, validity)</li>
+            <li>Migrate from JSON to SQLite for historical tracking</li>
+        </ul>
+
+        <h3>Lower Priority</h3>
+        <ul>
+            <li>IP range scanning for automatic certificate discovery</li>
+            <li>Integration with technologist.services/tools navigation</li>
+            <li>Multi-user support with role-based access</li>
+            <li>Certificate renewal reminders and workflows</li>
+            <li>API endpoints for external integrations</li>
+        </ul>
+    </div>
+
+    <div class="footer">
+        <p><strong>SSLMon v3.9</strong></p>
+        <p>Copyright 2025 Technologist.services - All Rights Reserved</p>
+        <p>Author: Doug Hesseltine</p>
+        <p>Last Updated: October 31, 2025</p>
+    </div>
+</body>
+</html>
